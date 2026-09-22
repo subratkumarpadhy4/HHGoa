@@ -220,7 +220,7 @@ Block Card & Freeze Account, routed for Requires Senior Analyst Sign-off (L2).
 Regulatory Basis:
 R7 — Shared-Device Fraud Rings; R12 — Step-Up Authentication Failure; R21 — SAR Filing Threshold.
 
-Prepared by: Sentra Agentic Investigation Platform
+Prepared by: Orbit Agentic Investigation Platform
 Status: Pending analyst countersignature before regulatory submission.`
     },
     sar_status: 'Pending',
@@ -505,7 +505,7 @@ Block Card & Freeze Account, routed for Requires Senior Analyst Sign-off (L2).
 Regulatory Basis:
 R2 — Card Testing Typology; R21 — SAR Filing Threshold.
 
-Prepared by: Sentra Agentic Investigation Platform
+Prepared by: Orbit Agentic Investigation Platform
 Status: Pending analyst countersignature before regulatory submission.`
     }
   },

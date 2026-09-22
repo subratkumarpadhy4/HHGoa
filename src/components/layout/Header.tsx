@@ -23,7 +23,7 @@ export const Header: React.FC<HeaderProps> = ({
           <Shield className="w-4 h-4 text-white" />
         </div>
         <span className="text-[14px] font-bold tracking-tight text-slate-900 font-sans">
-          Sentra
+          Orbit
         </span>
       </div>
 

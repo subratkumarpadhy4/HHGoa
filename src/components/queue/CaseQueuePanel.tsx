@@ -55,7 +55,7 @@ export const CaseQueuePanel: React.FC<CaseQueuePanelProps> = ({
           </div>
           <div>
             <div className="text-[13px] font-bold leading-tight tracking-tight text-slate-900">
-              Sentra
+              Orbit
             </div>
             <div className="text-[10.5px] text-slate-500 leading-tight">
               Case Queue
