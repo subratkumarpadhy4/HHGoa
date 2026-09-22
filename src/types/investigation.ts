@@ -166,5 +166,6 @@ export interface BenchmarkCase {
   graph_edges: GraphEdge[];
   execution_steps: ExecutionStep[];
   sar_report?: SarReport;
+  sar_status?: 'Pending' | 'Cleared';
   analyst_notes?: string;
 }

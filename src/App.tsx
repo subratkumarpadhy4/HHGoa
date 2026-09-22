@@ -50,19 +50,14 @@ export const App: React.FC = () => {
     });
   };
 
-  // Manual Trigger handler
-  const handleManualTrigger = (_customTxnId: string, _customScore: number) => {
-    setActiveCaseId(cases[0].case_id);
-    handleRunAutonomousInvestigation();
-  };
-
   // Human-in-the-loop: Approve Action
   const handleApproveAction = (actionName: string) => {
     setCases(prev => prev.map(c => {
       if (c.case_id === activeCase.case_id) {
         return {
           ...c,
-          status: actionName.toLowerCase().includes('clear') ? 'resolved_cleared' : 'resolved_fraud'
+          status: actionName.toLowerCase().includes('clear') ? 'resolved_cleared' : 'resolved_fraud',
+          sar_status: 'Cleared'
         };
       }
       return c;
@@ -94,6 +89,7 @@ export const App: React.FC = () => {
         return {
           ...c,
           status: 'resolved_cleared',
+          sar_status: 'Cleared',
           post_evidence_uncertainty: 'LOW',
           uncertainty_dimensions: {
             ...c.uncertainty_dimensions,
@@ -113,8 +109,6 @@ export const App: React.FC = () => {
         activeCase={activeCase}
         allCases={cases}
         onSelectCase={handleSelectCase}
-        onOpenLlmInspector={() => setIsLlmInspectorOpen(true)}
-        onOpenExportModal={() => setIsExportModalOpen(true)}
       />
 
       {/* 3-Column Cockpit Grid (260px minmax 340px) */}
@@ -125,7 +119,6 @@ export const App: React.FC = () => {
             cases={cases}
             activeCaseId={activeCase.case_id}
             onSelectCase={handleSelectCase}
-            onManualTrigger={handleManualTrigger}
             isInvestigating={isInvestigating}
           />
         </section>
@@ -177,7 +170,14 @@ export const App: React.FC = () => {
             <SarGenerator
               sarReport={activeCase.sar_report}
               caseId={activeCase.case_id}
-              onExportCaseJson={() => setIsExportModalOpen(true)}
+              sarStatus={activeCase.sar_status || (activeCase.status.startsWith('resolved') ? 'Cleared' : 'Pending')}
+              onStatusChange={(newStatus) => {
+                setCases(prev => prev.map(c => 
+                  c.case_id === activeCase.case_id 
+                    ? { ...c, sar_status: newStatus } 
+                    : c
+                ));
+              }}
             />
           </div>
 

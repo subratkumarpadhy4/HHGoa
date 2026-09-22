@@ -538,7 +538,7 @@ export const GraphCanvas: React.FC<GraphCanvasProps> = ({
             </div>
 
             <div className="mt-3 pt-2 border-t border-slate-100 flex items-center justify-between text-[10px] text-slate-400">
-              <span className="font-mono">TigerGraph Savanna Node</span>
+              <span className="font-mono">Graph Node</span>
               <span className="text-indigo-600 font-medium">1-Hop Traversed</span>
             </div>
           </div>

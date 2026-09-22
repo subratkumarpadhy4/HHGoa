@@ -222,7 +222,8 @@ R7 — Shared-Device Fraud Rings; R12 — Step-Up Authentication Failure; R21 �
 
 Prepared by: Sentra Agentic Investigation Platform
 Status: Pending analyst countersignature before regulatory submission.`
-    }
+    },
+    sar_status: 'Pending',
   },
   {
     case_id: 'CASE-02',
@@ -233,7 +234,8 @@ Status: Pending analyst countersignature before regulatory submission.`
     amount_usd: 118.20,
     timestamp: '2026-09-22 14:02 UTC',
     initial_risk_score: 0.58,
-    status: 'under_investigation',
+    status: 'resolved_cleared',
+    sar_status: 'Cleared',
     primary_pattern: 'Benign Velocity Spike',
     pre_evidence_uncertainty: 'MEDIUM',
     post_evidence_uncertainty: 'LOW',
@@ -664,7 +666,8 @@ function generateRemainingBenchmarkCases(): BenchmarkCase[] {
         regulatory_basis: 'FinCEN BSA 31 CFR § 1020.320 / R21',
         compliance_analyst: 'Automated Agent Sentinel v5.2',
         narrative: `Coordinated activity exhibiting ${t.pattern} identified across multiple transaction sessions in the amount of $${t.amount.toFixed(2)}. Evidence confirmed via TigerGraph topology traversal and step-up auth failure.`
-      } : undefined
+      } : undefined,
+      sar_status: isFraud ? 'Pending' : 'Cleared'
     };
   });
 }

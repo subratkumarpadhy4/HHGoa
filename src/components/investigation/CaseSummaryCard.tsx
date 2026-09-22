@@ -162,34 +162,6 @@ export const CaseSummaryCard: React.FC<CaseSummaryCardProps> = ({
           </button>
         </div>
       </div>
-
-      {/* Row 3: FROZEN ORDINAL DIMENSIONS chips matching Image 3 */}
-      <div className="mt-2.5 pt-2 border-t border-slate-100 flex flex-wrap items-center justify-between gap-y-1.5">
-        <div className="flex flex-wrap items-center gap-1.5">
-          <span className="text-[10px] font-bold text-slate-700 font-mono tracking-wider uppercase mr-1">
-            FROZEN ORDINAL DIMENSIONS:
-          </span>
-          <span className="px-2 py-0.5 rounded bg-slate-100 border border-slate-200/90 text-slate-800 text-[10.5px] font-mono font-medium">
-            RiskSignal: <strong className="text-slate-900">{uncertainty_dimensions.fraud_risk_signal}/3</strong>
-          </span>
-          <span className="px-2 py-0.5 rounded bg-slate-100 border border-slate-200/90 text-slate-800 text-[10.5px] font-mono font-medium">
-            GraphEv: <strong className="text-slate-900">{uncertainty_dimensions.graph_evidence}/3</strong>
-          </span>
-          <span className="px-2 py-0.5 rounded bg-slate-100 border border-slate-200/90 text-slate-800 text-[10.5px] font-mono font-medium">
-            BehavioralEv: <strong className="text-slate-900">{uncertainty_dimensions.behavioral_evidence}/2</strong>
-          </span>
-          <span className="px-2 py-0.5 rounded bg-slate-100 border border-slate-200/90 text-slate-800 text-[10.5px] font-mono font-medium">
-            PolicySupport: <strong className="text-slate-900">{uncertainty_dimensions.policy_support}/3</strong>
-          </span>
-          <span className="px-2 py-0.5 rounded bg-slate-100 border border-slate-200/90 text-slate-800 text-[10.5px] font-mono font-medium">
-            Contradiction: <strong className="text-slate-900">-{uncertainty_dimensions.contradictory_evidence}/3</strong>
-          </span>
-        </div>
-
-        <div className="text-[10.5px] text-slate-500 font-mono">
-          Evidence Sufficiency Engine: <span className="font-semibold text-slate-700">Priority Overrides + Linear 0-3 Scale</span>
-        </div>
-      </div>
     </div>
   );
 };

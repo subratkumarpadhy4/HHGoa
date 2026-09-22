@@ -1,8 +1,7 @@
 import { useState, useMemo } from 'react';
 import { 
   ShieldAlert, 
-  Clock, 
-  Play
+  Clock 
 } from 'lucide-react';
 import type { BenchmarkCase } from '../../types/investigation';
 
@@ -10,7 +9,7 @@ interface CaseQueuePanelProps {
   cases: BenchmarkCase[];
   activeCaseId: string;
   onSelectCase: (c: BenchmarkCase) => void;
-  onManualTrigger: (customTxnId: string, customScore: number) => void;
+  onManualTrigger?: (customTxnId: string, customScore: number) => void;
   isInvestigating?: boolean;
 }
 
@@ -20,10 +19,8 @@ export const CaseQueuePanel: React.FC<CaseQueuePanelProps> = ({
   cases,
   activeCaseId,
   onSelectCase,
-  onManualTrigger,
 }) => {
   const [activeTab, setActiveTab] = useState<TabType>('under_investigation');
-  const [manualInput, setManualInput] = useState('');
 
   // Counts for tabs
   const counts = useMemo(() => ({
@@ -41,14 +38,6 @@ export const CaseQueuePanel: React.FC<CaseQueuePanelProps> = ({
       return true;
     });
   }, [cases, activeTab]);
-
-  const handleManualSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!manualInput.trim()) return;
-    const score = parseFloat(manualInput) || 0.85;
-    onManualTrigger(manualInput, score);
-    setManualInput('');
-  };
 
   const getRiskTone = (score: number) => {
     if (score >= 0.75) return 'text-rose-700 bg-rose-50 border-rose-200';
@@ -181,29 +170,6 @@ export const CaseQueuePanel: React.FC<CaseQueuePanelProps> = ({
             No cases in this queue.
           </div>
         )}
-      </div>
-
-      {/* Manual Trigger Bar at Bottom matching Image 1 */}
-      <div className="border-t border-slate-200 p-3 bg-slate-50/60">
-        <div className="text-[11px] font-semibold text-slate-500 mb-1.5 uppercase tracking-wide">
-          Manual Trigger
-        </div>
-        <form onSubmit={handleManualSubmit}>
-          <input
-            type="text"
-            value={manualInput}
-            onChange={(e) => setManualInput(e.target.value)}
-            placeholder="Transaction ID or risk score"
-            className="w-full px-2.5 py-2 rounded-lg border border-slate-200 bg-white text-[12px] placeholder:text-slate-400 focus:outline-none focus:ring-1 focus:ring-indigo-500"
-          />
-          <button
-            type="submit"
-            className="mt-2 w-full flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg bg-slate-900 text-white text-[12.5px] font-semibold hover:bg-slate-800 transition-colors shadow-xs"
-          >
-            <Play className="w-3 h-3 fill-current" />
-            <span>Start Autonomous Investigation</span>
-          </button>
-        </form>
       </div>
     </div>
   );
