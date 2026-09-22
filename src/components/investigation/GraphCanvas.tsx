@@ -13,7 +13,10 @@ import {
   User, 
   Globe, 
   FolderArchive, 
-  Move
+  Move,
+  ChevronDown,
+  Check,
+  RotateCcw
 } from 'lucide-react';
 import type { GraphNode, GraphEdge } from '../../types/investigation';
 
@@ -32,6 +35,7 @@ export const GraphCanvas: React.FC<GraphCanvasProps> = ({
   const [nodes, setNodes] = useState<GraphNode[]>(initialNodes);
   const [selectedNode, setSelectedNode] = useState<GraphNode | null>(null);
   const [activeFilter, setActiveFilter] = useState<string>('all');
+  const [isFilterDropdownOpen, setIsFilterDropdownOpen] = useState<boolean>(false);
   const [showEdgeLabels, setShowEdgeLabels] = useState<boolean>(true);
   const [zoomLevel, setZoomLevel] = useState<number>(1);
   const [panOffset, setPanOffset] = useState<{ x: number; y: number }>({ x: 0, y: 0 });
@@ -40,6 +44,7 @@ export const GraphCanvas: React.FC<GraphCanvasProps> = ({
   const [draggingNodeId, setDraggingNodeId] = useState<string | null>(null);
 
   const containerRef = useRef<HTMLDivElement>(null);
+  const dropdownRef = useRef<HTMLDivElement>(null);
 
   // Sync when case changes
   useEffect(() => {
@@ -47,7 +52,37 @@ export const GraphCanvas: React.FC<GraphCanvasProps> = ({
     setSelectedNode(null);
     setPanOffset({ x: 0, y: 0 });
     setZoomLevel(1);
+    setActiveFilter('all');
+    setIsFilterDropdownOpen(false);
   }, [caseId, initialNodes]);
+
+  // Click outside to close filter dropdown
+  useEffect(() => {
+    const handleOutsideClick = (e: MouseEvent) => {
+      if (dropdownRef.current && !dropdownRef.current.contains(e.target as Node)) {
+        setIsFilterDropdownOpen(false);
+      }
+    };
+    if (isFilterDropdownOpen) {
+      document.addEventListener('mousedown', handleOutsideClick);
+    }
+    return () => {
+      document.removeEventListener('mousedown', handleOutsideClick);
+    };
+  }, [isFilterDropdownOpen]);
+
+  // Filter options with counts and colors
+  const filterOptions = useMemo(() => [
+    { key: 'all', label: 'All Entities', count: nodes.length, color: 'bg-slate-900' },
+    { key: 'transaction', label: 'Transaction', count: nodes.filter(n => n.type.toLowerCase() === 'transaction').length, color: 'bg-rose-600' },
+    { key: 'device', label: 'Device', count: nodes.filter(n => n.type.toLowerCase() === 'device').length, color: 'bg-emerald-600' },
+    { key: 'account', label: 'Account', count: nodes.filter(n => n.type.toLowerCase() === 'account').length, color: 'bg-sky-600' },
+    { key: 'card', label: 'Card', count: nodes.filter(n => n.type.toLowerCase() === 'card').length, color: 'bg-purple-600' },
+    { key: 'ip', label: 'IP Address', count: nodes.filter(n => n.type.toLowerCase() === 'ip').length, color: 'bg-amber-600' },
+    { key: 'priorcase', label: 'Prior Case', count: nodes.filter(n => n.type.toLowerCase() === 'priorcase').length, color: 'bg-rose-500' },
+  ], [nodes]);
+
+  const activeOption = filterOptions.find(o => o.key === activeFilter) || filterOptions[0];
 
   // Filter nodes based on entity type
   const filteredNodes = useMemo(() => {
@@ -145,28 +180,79 @@ export const GraphCanvas: React.FC<GraphCanvasProps> = ({
   };
 
   return (
-    <div className="relative flex-1 h-full min-h-[360px] bg-slate-50/70 overflow-hidden flex flex-col select-none">
-      {/* Top Floating Graph Toolbar */}
-      <div className="absolute top-3 left-3 right-3 z-10 flex items-center justify-between pointer-events-none">
-        {/* Entity Filter Badges */}
-        <div className="pointer-events-auto flex items-center space-x-1 bg-white/90 backdrop-blur-md border border-slate-200 shadow-sm p-1 rounded-lg text-xs">
-          <span className="text-[11px] font-bold text-slate-500 px-1.5 flex items-center space-x-1">
-            <Filter className="w-3 h-3 text-slate-400" />
-            <span>Filter:</span>
-          </span>
-          {['all', 'transaction', 'device', 'account', 'card', 'ip', 'priorcase'].map((type) => (
+    <div className="relative flex-1 h-full min-h-[380px] bg-slate-50/70 overflow-hidden flex flex-col select-none">
+      {/* Top Floating Graph Toolbar with Dropdown Menu */}
+      <div className="absolute top-3 left-3 right-3 z-20 flex items-center justify-between pointer-events-none">
+        {/* Dropdown Menu for Filters */}
+        <div ref={dropdownRef} className="pointer-events-auto relative flex items-center gap-1.5">
+          <button
+            type="button"
+            onClick={() => setIsFilterDropdownOpen(prev => !prev)}
+            className="flex items-center space-x-2 bg-white/95 backdrop-blur-md border border-slate-200 hover:border-slate-300 shadow-sm px-3 py-1.5 rounded-lg text-xs transition-colors focus:outline-none focus:ring-1 focus:ring-indigo-500"
+          >
+            <Filter className="w-3.5 h-3.5 text-slate-500" />
+            <span className="font-semibold text-slate-600 text-[11px]">Filter:</span>
+            <span className="px-2 py-0.5 rounded bg-slate-900 text-white font-bold text-[10.5px] font-mono">
+              {activeOption.label}
+            </span>
+            <span className="text-[10px] text-slate-400 font-mono">({activeOption.count})</span>
+            <ChevronDown className={`w-3.5 h-3.5 text-slate-400 transition-transform duration-150 ${isFilterDropdownOpen ? 'rotate-180' : ''}`} />
+          </button>
+
+          {/* Reset filter button if not all */}
+          {activeFilter !== 'all' && (
             <button
-              key={type}
-              onClick={() => setActiveFilter(type)}
-              className={`px-2 py-0.5 rounded text-[11px] font-medium transition-colors ${
-                activeFilter === type
-                  ? 'bg-slate-900 text-white font-semibold'
-                  : 'text-slate-600 hover:bg-slate-100'
-              }`}
+              type="button"
+              onClick={() => setActiveFilter('all')}
+              className="flex items-center gap-1 px-2 py-1.5 rounded-lg bg-white border border-slate-200 text-slate-600 hover:bg-slate-50 text-[10.5px] font-medium shadow-xs"
+              title="Reset to All Entities"
             >
-              {type === 'all' ? 'All Entities' : type.charAt(0).toUpperCase() + type.slice(1)}
+              <RotateCcw className="w-3 h-3 text-slate-400" />
+              <span>Reset</span>
             </button>
-          ))}
+          )}
+
+          {/* Dropdown Menu Popup */}
+          {isFilterDropdownOpen && (
+            <div className="absolute top-full left-0 mt-1.5 w-52 bg-white border border-slate-200 rounded-xl shadow-lg p-1.5 z-30 animate-in fade-in slide-in-from-top-1 duration-100">
+              <div className="px-2 py-1 text-[10px] font-bold text-slate-400 uppercase tracking-wider font-mono">
+                Entity Types
+              </div>
+              <div className="space-y-0.5">
+                {filterOptions.map((opt) => {
+                  const isCurrent = activeFilter === opt.key;
+                  return (
+                    <button
+                      key={opt.key}
+                      type="button"
+                      onClick={() => {
+                        setActiveFilter(opt.key);
+                        setIsFilterDropdownOpen(false);
+                      }}
+                      className={`w-full flex items-center justify-between px-2.5 py-1.5 rounded-lg text-xs transition-colors ${
+                        isCurrent 
+                          ? 'bg-indigo-50 text-indigo-700 font-semibold' 
+                          : 'text-slate-700 hover:bg-slate-50'
+                      }`}
+                    >
+                      <div className="flex items-center space-x-2">
+                        <span className={`w-2 h-2 rounded-full ${opt.color}`} />
+                        <span>{opt.label}</span>
+                      </div>
+                      <div className="flex items-center space-x-1.5">
+                        <span className={`text-[10px] font-mono px-1.5 py-0.2 rounded ${
+                          isCurrent ? 'bg-indigo-100 text-indigo-800 font-bold' : 'bg-slate-100 text-slate-500'
+                        }`}>
+                          {opt.count}
+                        </span>
+                        {isCurrent && <Check className="w-3.5 h-3.5 text-indigo-600 stroke-[2.5]" />}
+                      </div>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          )}
         </div>
 
         {/* Canvas Controls: Zoom, Reset, Labels */}
@@ -228,17 +314,17 @@ export const GraphCanvas: React.FC<GraphCanvasProps> = ({
             {fraudRingNodes.length > 0 && (
               <g className="pointer-events-none">
                 <ellipse
-                  cx={600}
+                  cx={640}
                   cy={185}
-                  rx={195}
-                  ry={140}
+                  rx={250}
+                  ry={155}
                   className="fill-rose-500/[0.02] stroke-rose-400 stroke-dashed animate-ring-pulse"
                   strokeWidth="1.5"
                   strokeDasharray="4 3"
                 />
                 <text
-                  x={600}
-                  y={46}
+                  x={640}
+                  y={32}
                   textAnchor="middle"
                   className="fill-rose-600 font-extrabold text-[10.5px] tracking-widest uppercase font-mono"
                 >
@@ -259,6 +345,7 @@ export const GraphCanvas: React.FC<GraphCanvasProps> = ({
               const y2 = targetNode.y || 200;
               const midX = (x1 + x2) / 2;
               const midY = (y1 + y2) / 2;
+              const labelWidth = Math.max(68, edge.label.length * 6.5 + 16);
 
               return (
                 <g key={edge.id} className="transition-opacity duration-300">
@@ -275,9 +362,9 @@ export const GraphCanvas: React.FC<GraphCanvasProps> = ({
                   {showEdgeLabels && (
                     <g transform={`translate(${midX}, ${midY})`}>
                       <rect
-                        x="-40"
+                        x={-labelWidth / 2}
                         y="-9"
-                        width="80"
+                        width={labelWidth}
                         height="18"
                         rx="4"
                         fill="#FFFFFF"

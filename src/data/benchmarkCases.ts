@@ -122,14 +122,14 @@ export const BENCHMARK_CASES: BenchmarkCase[] = [
       contradictions: []
     },
     graph_nodes: [
-      { id: 'ACC-89104', label: 'Account\n#89104', type: 'Account', properties: { created: '3d ago', kyc: 'Tier 1' }, x: 230, y: 160 },
-      { id: 'CARD-9021', label: 'Visa Card\n*9021', type: 'Card', properties: { brand: 'Visa', bin: '411111' }, x: 210, y: 285 },
-      { id: 'TXN-3049102', label: 'TXN #3049102\n$894.20', type: 'Transaction', riskScore: 0.88, isFraudRing: true, properties: { amount: '$894.20', status: 'Pending Hold', time: '18:24:10 UTC' }, x: 375, y: 210 },
-      { id: 'CASE-0741', label: 'Prior Case\n#0741 (Loss $4.2k)', type: 'PriorCase', isFraudRing: true, properties: { outcome: 'Fraud Confirmed', loss: '$4,200' }, x: 415, y: 90 },
-      { id: 'DEV-F089', label: 'Device Ring Core\nDEV-F089-B2C1', type: 'Device', isFraudRing: true, properties: { model: 'iPhone 15', os: 'iOS 17.4', accounts_seen: 7 }, x: 535, y: 165 },
-      { id: 'IP-198', label: 'IP Address\n198.51.100.44', type: 'IP', isFraudRing: true, properties: { vpn: true, isp: 'Datacenter' }, x: 540, y: 295 },
-      { id: 'ACC-77102', label: 'Linked Acc\n#77102', type: 'Account', isFraudRing: true, properties: { status: 'Closed Fraud' }, x: 690, y: 130 },
-      { id: 'ACC-65489', label: 'Linked Acc\n#65489', type: 'Account', isFraudRing: true, properties: { status: 'Chargeback' }, x: 705, y: 235 }
+      { id: 'ACC-89104', label: 'Account\n#89104', type: 'Account', properties: { created: '3d ago', kyc: 'Tier 1' }, x: 130, y: 150 },
+      { id: 'CARD-9021', label: 'Visa Card\n*9021', type: 'Card', properties: { brand: 'Visa', bin: '411111' }, x: 120, y: 280 },
+      { id: 'TXN-3049102', label: 'TXN #3049102\n$894.20', type: 'Transaction', riskScore: 0.88, isFraudRing: true, properties: { amount: '$894.20', status: 'Pending Hold', time: '18:24:10 UTC' }, x: 365, y: 215 },
+      { id: 'CASE-0741', label: 'Prior Case\n#0741 (Loss $4.2k)', type: 'PriorCase', isFraudRing: true, properties: { outcome: 'Fraud Confirmed', loss: '$4,200' }, x: 440, y: 80 },
+      { id: 'DEV-F089', label: 'Device Ring Core\nDEV-F089-B2C1', type: 'Device', isFraudRing: true, properties: { model: 'iPhone 15', os: 'iOS 17.4', accounts_seen: 7 }, x: 605, y: 175 },
+      { id: 'IP-198', label: 'IP Address\n198.51.100.44', type: 'IP', isFraudRing: true, properties: { vpn: true, isp: 'Datacenter' }, x: 550, y: 310 },
+      { id: 'ACC-77102', label: 'Linked Acc\n#77102', type: 'Account', isFraudRing: true, properties: { status: 'Closed Fraud' }, x: 835, y: 120 },
+      { id: 'ACC-65489', label: 'Linked Acc\n#65489', type: 'Account', isFraudRing: true, properties: { status: 'Chargeback' }, x: 845, y: 245 }
     ],
     graph_edges: [
       { id: 'e1', source: 'ACC-89104', target: 'TXN-3049102', label: 'INITIATED', type: 'OWNS' },
@@ -328,11 +328,11 @@ Status: Pending analyst countersignature before regulatory submission.`
       contradictions: ['Customer passed authentication immediately from trusted hardware']
     },
     graph_nodes: [
-      { id: 'TXN-772015', label: 'TXN #772015\n$118.20', type: 'Transaction', riskScore: 0.58, properties: { amount: '$118.20', status: 'Cleared' }, x: 380, y: 220 },
-      { id: 'USR-90144', label: 'Account\nUSR-90144', type: 'Account', properties: { status: 'Good Standing' }, x: 230, y: 170 },
-      { id: 'CARD-9013', label: 'Mastercard\n•••• 9013', type: 'Card', properties: { brand: 'Mastercard' }, x: 220, y: 290 },
-      { id: 'DVC-11A0', label: 'Device\nDVC-11A0 (known)', type: 'Device', properties: { model: 'iPhone 14', trusted_days: 480 }, x: 540, y: 180 },
-      { id: 'IP-88-14', label: 'IP Address\n88.14.x.x (home)', type: 'IP', properties: { isp: 'Residential Fiber' }, x: 530, y: 300 }
+      { id: 'USR-90144', label: 'Account\nUSR-90144', type: 'Account', properties: { status: 'Good Standing' }, x: 180, y: 160 },
+      { id: 'CARD-9013', label: 'Mastercard\n•••• 9013', type: 'Card', properties: { brand: 'Mastercard' }, x: 180, y: 290 },
+      { id: 'TXN-772015', label: 'TXN #772015\n$118.20', type: 'Transaction', riskScore: 0.58, properties: { amount: '$118.20', status: 'Cleared' }, x: 440, y: 225 },
+      { id: 'DVC-11A0', label: 'Device\nDVC-11A0 (known)', type: 'Device', properties: { model: 'iPhone 14', trusted_days: 480 }, x: 700, y: 160 },
+      { id: 'IP-88-14', label: 'IP Address\n88.14.x.x (home)', type: 'IP', properties: { isp: 'Residential Fiber' }, x: 700, y: 290 }
     ],
     graph_edges: [
       { id: 'e1', source: 'USR-90144', target: 'TXN-772015', label: 'OWNS', type: 'OWNS' },
@@ -452,11 +452,11 @@ Status: Pending analyst countersignature before regulatory submission.`
       contradictions: []
     },
     graph_nodes: [
-      { id: 'TXN-773390', label: 'TXN #773390\n$2.14', type: 'Transaction', riskScore: 0.97, isFraudRing: true, properties: { amount: '$2.14', status: 'Blocked' }, x: 380, y: 220 },
-      { id: 'CARD-3390', label: 'Card\n•••• 3390', type: 'Card', properties: { bin: '400000', attempts: 18 }, x: 230, y: 190 },
-      { id: 'DVC-F002', label: 'Device\nDVC-F002 (flagged)', type: 'Device', isFraudRing: true, properties: { model: 'HeadlessChrome', headless: true }, x: 530, y: 160 },
-      { id: 'IP-203-0', label: 'IP Address\n203.0.x.x (blacklisted)', type: 'IP', isFraudRing: true, properties: { proxy: true }, x: 530, y: 290 },
-      { id: 'PATTERN-CT', label: 'Pattern\nCardTesting', type: 'PriorCase', isFraudRing: true, properties: { matched: 'Directive' }, x: 670, y: 210 }
+      { id: 'CARD-3390', label: 'Card\n•••• 3390', type: 'Card', properties: { bin: '400000', attempts: 18 }, x: 180, y: 220 },
+      { id: 'TXN-773390', label: 'TXN #773390\n$2.14', type: 'Transaction', riskScore: 0.97, isFraudRing: true, properties: { amount: '$2.14', status: 'Blocked' }, x: 420, y: 220 },
+      { id: 'DVC-F002', label: 'Device\nDVC-F002 (flagged)', type: 'Device', isFraudRing: true, properties: { model: 'HeadlessChrome', headless: true }, x: 670, y: 150 },
+      { id: 'IP-203-0', label: 'IP Address\n203.0.x.x (blacklisted)', type: 'IP', isFraudRing: true, properties: { proxy: true }, x: 670, y: 290 },
+      { id: 'PATTERN-CT', label: 'Pattern\nCardTesting', type: 'PriorCase', isFraudRing: true, properties: { matched: 'Directive' }, x: 860, y: 150 }
     ],
     graph_edges: [
       { id: 'e1', source: 'TXN-773390', target: 'CARD-3390', label: 'PAYMENT_VIA', type: 'USES_CARD' },
