@@ -169,3 +169,31 @@ export interface BenchmarkCase {
   sar_status?: 'Pending' | 'Cleared';
   analyst_notes?: string;
 }
+
+export type CaseLifecycleStatus = 'Resolved' | 'Closed' | 'Pending';
+
+export function getCaseLifecycleStatus(c: { status: CaseStatus | string }): CaseLifecycleStatus {
+  if (c.status === 'resolved_cleared' || c.status === 'resolved') {
+    return 'Resolved';
+  }
+  if (c.status === 'resolved_fraud' || c.status === 'closed' || c.status === 'escalated_human') {
+    return 'Closed';
+  }
+  return 'Pending';
+}
+
+export function getStatusDot(status: CaseLifecycleStatus): {
+  colorClass: string;
+  dotBg: string;
+  label: string;
+} {
+  switch (status) {
+    case 'Resolved':
+      return { colorClass: 'bg-emerald-500', dotBg: '#10B981', label: 'Resolved' };
+    case 'Closed':
+      return { colorClass: 'bg-rose-500', dotBg: '#F43F5E', label: 'Closed' };
+    case 'Pending':
+    default:
+      return { colorClass: 'bg-amber-400', dotBg: '#FBBF24', label: 'Pending' };
+  }
+}

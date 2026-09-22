@@ -359,7 +359,7 @@ Status: Pending analyst countersignature before regulatory submission.`
     amount_usd: 2.14,
     timestamp: '2026-09-23 01:47 UTC',
     initial_risk_score: 0.97,
-    status: 'requires_approval',
+    status: 'resolved_fraud',
     primary_pattern: 'Direct Fraud Pattern',
     pre_evidence_uncertainty: 'HIGH',
     post_evidence_uncertainty: 'HIGH',
