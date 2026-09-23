@@ -27,8 +27,6 @@ interface GraphCanvasProps {
   isInvestigating?: boolean;
 }
 
-const DEFAULT_ZOOM = 1.18;
-
 export const GraphCanvas: React.FC<GraphCanvasProps> = ({
   nodes: initialNodes,
   edges,
@@ -39,7 +37,7 @@ export const GraphCanvas: React.FC<GraphCanvasProps> = ({
   const [activeFilter, setActiveFilter] = useState<string>('all');
   const [isFilterDropdownOpen, setIsFilterDropdownOpen] = useState<boolean>(false);
   const [showEdgeLabels, setShowEdgeLabels] = useState<boolean>(true);
-  const [zoomLevel, setZoomLevel] = useState<number>(DEFAULT_ZOOM);
+  const [zoomLevel, setZoomLevel] = useState<number>(1.0);
   const [userPanOffset, setUserPanOffset] = useState<{ x: number; y: number }>({ x: 0, y: 0 });
   const [isDraggingCanvas, setIsDraggingCanvas] = useState<boolean>(false);
   const [dragStart, setDragStart] = useState<{ x: number; y: number }>({ x: 0, y: 0 });
@@ -81,28 +79,66 @@ export const GraphCanvas: React.FC<GraphCanvasProps> = ({
     };
   }, [isMaximized]);
 
-  // Center coordinate of all nodes in world space
-  const graphCenter = useMemo(() => {
-    if (nodes.length === 0) return { x: 440, y: 220 };
+  // Bounding box of all nodes with card half-width and margins
+  const bounds = useMemo(() => {
+    if (nodes.length === 0) {
+      return { minX: 100, maxX: 800, minY: 50, maxY: 350, width: 700, height: 300, centerX: 450, centerY: 200 };
+    }
     const xs = nodes.map(n => (typeof n.x === 'number' ? n.x : 440));
     const ys = nodes.map(n => (typeof n.y === 'number' ? n.y : 220));
-    const minX = Math.min(...xs);
-    const maxX = Math.max(...xs);
-    const minY = Math.min(...ys);
-    const maxY = Math.max(...ys);
+
+    // Each node card is 130px wide (-65 to +65) and 56px high (-28 to +28)
+    let minX = Math.min(...xs) - 75;
+    let maxX = Math.max(...xs) + 75;
+    let minY = Math.min(...ys) - 35;
+    let maxY = Math.max(...ys) + 35;
+
+    // Expand bounds if coordinated ring cluster aura is present
+    if (nodes.some(n => n.isFraudRing)) {
+      minY = Math.min(minY, 20); // cluster text at y = 32
+      maxX = Math.max(maxX, 640 + 260); // aura ellipse at cx=640, rx=250
+    }
+
+    const width = Math.max(maxX - minX, 100);
+    const height = Math.max(maxY - minY, 100);
+
     return {
-      x: (minX + maxX) / 2,
-      y: (minY + maxY) / 2,
+      minX,
+      maxX,
+      minY,
+      maxY,
+      width,
+      height,
+      centerX: (minX + maxX) / 2,
+      centerY: (minY + maxY) / 2,
     };
   }, [nodes]);
 
-  // Effective SVG pan locks the graph center to the viewport center + user drag
+  // Compute optimal zoom to fit the entire graph into the visible container
+  const computeFitZoom = useCallback((w: number, h: number) => {
+    if (w <= 0 || h <= 0 || bounds.width <= 0 || bounds.height <= 0) return 1.0;
+    // Margins: 70px horizontal, 100px vertical (toolbar and legend padding)
+    const availW = Math.max(w - 70, 200);
+    const availH = Math.max(h - 100, 200);
+
+    const scaleX = availW / bounds.width;
+    const scaleY = availH / bounds.height;
+    const fit = Math.min(scaleX, scaleY);
+    // Clamp to a clear, legible range (0.65 to 1.35)
+    return Math.min(Math.max(Number(fit.toFixed(2)), 0.65), 1.35);
+  }, [bounds]);
+
+  // Effective SVG pan:
+  // - Horizontally centered in the container
+  // - Vertically anchored so the top of the graph stays fixed below the toolbar (~58px)
+  //   even when the terminal pops up at the bottom
   const effectivePan = useMemo(() => {
+    const topAnchorY = 58;
     return {
-      x: Math.round(containerSize.width / 2 - graphCenter.x * zoomLevel + userPanOffset.x),
-      y: Math.round(containerSize.height / 2 - graphCenter.y * zoomLevel + userPanOffset.y),
+      x: Math.round(containerSize.width / 2 - bounds.centerX * zoomLevel + userPanOffset.x),
+      y: Math.round(topAnchorY - bounds.minY * zoomLevel + userPanOffset.y),
     };
-  }, [containerSize.width, containerSize.height, graphCenter.x, graphCenter.y, zoomLevel, userPanOffset.x, userPanOffset.y]);
+  }, [containerSize.width, bounds.centerX, bounds.minY, zoomLevel, userPanOffset.x, userPanOffset.y]);
 
   // Keyboard shortcut: Escape to exit maximized mode
   useEffect(() => {
@@ -124,15 +160,16 @@ export const GraphCanvas: React.FC<GraphCanvasProps> = ({
   // Smooth Zoom Out: contracts symmetrically towards graph center
   const handleZoomOut = useCallback(() => {
     if (isMaximized) return; // Zoom feature should not work while enlarged
-    setZoomLevel(prev => Math.max(Number((prev - 0.15).toFixed(2)), 0.6));
+    setZoomLevel(prev => Math.max(Number((prev - 0.15).toFixed(2)), 0.5));
   }, [isMaximized]);
 
-  // Reset Pan and Zoom to centered default
+  // Reset Pan and Zoom to auto-fitted default
   const handleResetZoomPan = useCallback(() => {
     if (isMaximized) return;
-    setZoomLevel(DEFAULT_ZOOM);
+    const fit = computeFitZoom(containerSize.width, containerSize.height);
+    setZoomLevel(fit);
     setUserPanOffset({ x: 0, y: 0 });
-  }, [isMaximized]);
+  }, [isMaximized, computeFitZoom, containerSize.width, containerSize.height]);
 
   // Mouse wheel zoom towards center (disabled when maximized)
   useEffect(() => {
@@ -140,25 +177,26 @@ export const GraphCanvas: React.FC<GraphCanvasProps> = ({
     if (!container) return;
 
     const onWheel = (e: WheelEvent) => {
-      if (isMaximized) return; // Zoom feature should not work while enlarged
+      if (isMaximized) return;
       e.preventDefault();
       const zoomFactor = e.deltaY < 0 ? 0.08 : -0.08;
-      setZoomLevel(prev => Math.min(Math.max(Number((prev + zoomFactor).toFixed(2)), 0.6), 2.5));
+      setZoomLevel(prev => Math.min(Math.max(Number((prev + zoomFactor).toFixed(2)), 0.5), 2.5));
     };
 
     container.addEventListener('wheel', onWheel, { passive: false });
     return () => container.removeEventListener('wheel', onWheel);
   }, [isMaximized]);
 
-  // Sync when case changes
+  // Sync and auto-fit when case changes
   useEffect(() => {
     setNodes(initialNodes);
     setSelectedNode(null);
     setUserPanOffset({ x: 0, y: 0 });
-    setZoomLevel(DEFAULT_ZOOM);
+    const fit = computeFitZoom(containerSize.width, containerSize.height);
+    setZoomLevel(fit);
     setActiveFilter('all');
     setIsFilterDropdownOpen(false);
-  }, [caseId, initialNodes]);
+  }, [caseId, initialNodes, computeFitZoom, containerSize.width, containerSize.height]);
 
   // Click outside to close filter dropdown
   useEffect(() => {
