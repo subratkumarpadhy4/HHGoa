@@ -46,6 +46,41 @@ Compliance & AML Intelligence Division`;
     URL.revokeObjectURL(url);
   };
 
+  if (!caseId) {
+    return (
+      <div className="bg-white rounded-xl border border-slate-200 shadow-xs p-4 select-none space-y-3">
+        <div className="flex items-center justify-between">
+          <div className="text-[11px] font-semibold text-slate-500 uppercase tracking-wide flex items-center gap-1.5">
+            <FileText className="w-3 h-3 text-slate-400" />
+            <span>Suspicious Activity Report</span>
+          </div>
+          <span className="px-2 py-0.5 rounded text-[10.5px] font-mono font-medium text-slate-400 bg-slate-100 border border-slate-200">
+            Template Standby
+          </span>
+        </div>
+
+        <div className="rounded-lg border border-dashed border-slate-200 bg-slate-50/50 p-3 space-y-2 opacity-65">
+          <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wider font-mono">
+            FinCEN Statutory Template
+          </div>
+          <p className="text-[11px] text-slate-500 leading-relaxed font-mono">
+            Autonomous narrative generation armed. Traversal signals, step-up challenge telemetry, and regulatory typology citations will compile automatically upon case selection.
+          </p>
+        </div>
+
+        <div className="flex items-center gap-2 pt-1">
+          <button
+            disabled
+            className="flex-1 flex items-center justify-center gap-1.5 py-1.5 px-3 rounded-lg bg-slate-100 text-slate-400 text-xs font-medium cursor-not-allowed border border-slate-200"
+          >
+            <Copy className="w-3.5 h-3.5 text-slate-300" />
+            <span>Copy SAR</span>
+          </button>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-4 select-none space-y-3">
       <div className="flex items-center justify-between">

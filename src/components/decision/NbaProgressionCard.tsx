@@ -9,9 +9,9 @@ import {
 import type { NbaRecommendation, DynamicEvidenceRequest, ApprovalTier } from '../../types/investigation';
 
 interface NbaProgressionCardProps {
-  preNba: NbaRecommendation;
-  evidenceInjected: DynamicEvidenceRequest;
-  postNba: NbaRecommendation;
+  preNba?: NbaRecommendation;
+  evidenceInjected?: DynamicEvidenceRequest;
+  postNba?: NbaRecommendation;
   isInvestigating?: boolean;
 }
 
@@ -44,6 +44,59 @@ export const NbaProgressionCard: React.FC<NbaProgressionCardProps> = ({
       </span>
     );
   };
+
+  if (!preNba || !postNba || !evidenceInjected) {
+    return (
+      <div className="bg-white rounded-xl border border-slate-200 shadow-xs p-4 select-none">
+        <div className="flex items-center justify-between mb-3">
+          <div className="text-[11px] font-semibold text-slate-500 uppercase tracking-wide flex items-center gap-1.5">
+            <Activity className="w-3 h-3 text-slate-400" />
+            <span>Next-Best-Action Progression</span>
+          </div>
+          <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-slate-100 text-slate-400 font-medium">
+            Standby
+          </span>
+        </div>
+
+        <div className="space-y-2 opacity-65">
+          <div className="rounded-lg border border-dashed border-slate-200 bg-slate-50/50 p-2.5">
+            <div className="text-[10px] font-semibold uppercase tracking-wide text-slate-400 mb-1">
+              Stage 1 · Before Evidence
+            </div>
+            <div className="text-[12px] font-medium text-slate-600">
+              Initial Triage & Hold Assessment
+            </div>
+          </div>
+
+          <div className="flex justify-center text-slate-300">
+            <ArrowDown className="w-3.5 h-3.5" />
+          </div>
+
+          <div className="rounded-lg border border-dashed border-slate-200 bg-slate-50/50 p-2.5">
+            <div className="text-[10px] font-semibold uppercase tracking-wide text-slate-400 mb-1">
+              Stage 2 · Dynamic Evidence Trigger
+            </div>
+            <div className="text-[12px] font-medium text-slate-600">
+              Step-Up Challenge & Verification
+            </div>
+          </div>
+
+          <div className="flex justify-center text-slate-300">
+            <ArrowDown className="w-3.5 h-3.5" />
+          </div>
+
+          <div className="rounded-lg border border-dashed border-slate-200 bg-slate-50/50 p-2.5">
+            <div className="text-[10px] font-semibold uppercase tracking-wide text-slate-400 mb-1">
+              Stage 3 · Policy Gate & Containment
+            </div>
+            <div className="text-[12px] font-medium text-slate-600">
+              Containment, Freeze, or Cleared Resolution
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   const isFailedEvidence = evidenceInjected.status === 'FAILED';
 

@@ -1,11 +1,11 @@
-import React, { useState, useRef, useEffect, useMemo } from 'react';
+import React, { useState, useRef, useEffect, useMemo, useCallback } from 'react';
 import { 
   ZoomIn, 
   ZoomOut, 
   Maximize2, 
+  Minimize2,
   Filter, 
   Layers, 
-  Eye, 
   AlertOctagon, 
   X, 
   Smartphone, 
@@ -27,6 +27,8 @@ interface GraphCanvasProps {
   isInvestigating?: boolean;
 }
 
+const DEFAULT_ZOOM = 1.18;
+
 export const GraphCanvas: React.FC<GraphCanvasProps> = ({
   nodes: initialNodes,
   edges,
@@ -37,21 +39,123 @@ export const GraphCanvas: React.FC<GraphCanvasProps> = ({
   const [activeFilter, setActiveFilter] = useState<string>('all');
   const [isFilterDropdownOpen, setIsFilterDropdownOpen] = useState<boolean>(false);
   const [showEdgeLabels, setShowEdgeLabels] = useState<boolean>(true);
-  const [zoomLevel, setZoomLevel] = useState<number>(1);
-  const [panOffset, setPanOffset] = useState<{ x: number; y: number }>({ x: 0, y: 0 });
+  const [zoomLevel, setZoomLevel] = useState<number>(DEFAULT_ZOOM);
+  const [userPanOffset, setUserPanOffset] = useState<{ x: number; y: number }>({ x: 0, y: 0 });
   const [isDraggingCanvas, setIsDraggingCanvas] = useState<boolean>(false);
   const [dragStart, setDragStart] = useState<{ x: number; y: number }>({ x: 0, y: 0 });
   const [draggingNodeId, setDraggingNodeId] = useState<string | null>(null);
+  const [isMaximized, setIsMaximized] = useState<boolean>(false);
+  const [containerSize, setContainerSize] = useState<{ width: number; height: number }>({
+    width: 900,
+    height: 520,
+  });
 
   const containerRef = useRef<HTMLDivElement>(null);
   const dropdownRef = useRef<HTMLDivElement>(null);
+
+  // ResizeObserver and resize listener to keep container viewport dimensions accurate
+  useEffect(() => {
+    const updateSize = () => {
+      if (containerRef.current) {
+        const rect = containerRef.current.getBoundingClientRect();
+        if (rect.width > 0 && rect.height > 0) {
+          setContainerSize({
+            width: Math.round(rect.width),
+            height: Math.round(rect.height),
+          });
+        }
+      }
+    };
+
+    updateSize();
+    window.addEventListener('resize', updateSize);
+    let ro: ResizeObserver | null = null;
+    if (typeof ResizeObserver !== 'undefined' && containerRef.current) {
+      ro = new ResizeObserver(() => updateSize());
+      ro.observe(containerRef.current);
+    }
+
+    return () => {
+      window.removeEventListener('resize', updateSize);
+      if (ro) ro.disconnect();
+    };
+  }, [isMaximized]);
+
+  // Center coordinate of all nodes in world space
+  const graphCenter = useMemo(() => {
+    if (nodes.length === 0) return { x: 440, y: 220 };
+    const xs = nodes.map(n => (typeof n.x === 'number' ? n.x : 440));
+    const ys = nodes.map(n => (typeof n.y === 'number' ? n.y : 220));
+    const minX = Math.min(...xs);
+    const maxX = Math.max(...xs);
+    const minY = Math.min(...ys);
+    const maxY = Math.max(...ys);
+    return {
+      x: (minX + maxX) / 2,
+      y: (minY + maxY) / 2,
+    };
+  }, [nodes]);
+
+  // Effective SVG pan locks the graph center to the viewport center + user drag
+  const effectivePan = useMemo(() => {
+    return {
+      x: Math.round(containerSize.width / 2 - graphCenter.x * zoomLevel + userPanOffset.x),
+      y: Math.round(containerSize.height / 2 - graphCenter.y * zoomLevel + userPanOffset.y),
+    };
+  }, [containerSize.width, containerSize.height, graphCenter.x, graphCenter.y, zoomLevel, userPanOffset.x, userPanOffset.y]);
+
+  // Keyboard shortcut: Escape to exit maximized mode
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape' && isMaximized) {
+        setIsMaximized(false);
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [isMaximized]);
+
+  // Smooth Zoom In: expands symmetrically around graph center
+  const handleZoomIn = useCallback(() => {
+    if (isMaximized) return; // Zoom feature should not work while enlarged
+    setZoomLevel(prev => Math.min(Number((prev + 0.15).toFixed(2)), 2.5));
+  }, [isMaximized]);
+
+  // Smooth Zoom Out: contracts symmetrically towards graph center
+  const handleZoomOut = useCallback(() => {
+    if (isMaximized) return; // Zoom feature should not work while enlarged
+    setZoomLevel(prev => Math.max(Number((prev - 0.15).toFixed(2)), 0.6));
+  }, [isMaximized]);
+
+  // Reset Pan and Zoom to centered default
+  const handleResetZoomPan = useCallback(() => {
+    if (isMaximized) return;
+    setZoomLevel(DEFAULT_ZOOM);
+    setUserPanOffset({ x: 0, y: 0 });
+  }, [isMaximized]);
+
+  // Mouse wheel zoom towards center (disabled when maximized)
+  useEffect(() => {
+    const container = containerRef.current;
+    if (!container) return;
+
+    const onWheel = (e: WheelEvent) => {
+      if (isMaximized) return; // Zoom feature should not work while enlarged
+      e.preventDefault();
+      const zoomFactor = e.deltaY < 0 ? 0.08 : -0.08;
+      setZoomLevel(prev => Math.min(Math.max(Number((prev + zoomFactor).toFixed(2)), 0.6), 2.5));
+    };
+
+    container.addEventListener('wheel', onWheel, { passive: false });
+    return () => container.removeEventListener('wheel', onWheel);
+  }, [isMaximized]);
 
   // Sync when case changes
   useEffect(() => {
     setNodes(initialNodes);
     setSelectedNode(null);
-    setPanOffset({ x: 0, y: 0 });
-    setZoomLevel(1);
+    setUserPanOffset({ x: 0, y: 0 });
+    setZoomLevel(DEFAULT_ZOOM);
     setActiveFilter('all');
     setIsFilterDropdownOpen(false);
   }, [caseId, initialNodes]);
@@ -113,15 +217,15 @@ export const GraphCanvas: React.FC<GraphCanvasProps> = ({
   const handleCanvasMouseDown = (e: React.MouseEvent) => {
     if (e.button === 0) {
       setIsDraggingCanvas(true);
-      setDragStart({ x: e.clientX - panOffset.x, y: e.clientY - panOffset.y });
+      setDragStart({ x: e.clientX - userPanOffset.x, y: e.clientY - userPanOffset.y });
     }
   };
 
   const handleMouseMove = (e: React.MouseEvent) => {
     if (draggingNodeId && containerRef.current) {
       const rect = containerRef.current.getBoundingClientRect();
-      const currentX = (e.clientX - rect.left - panOffset.x) / zoomLevel;
-      const currentY = (e.clientY - rect.top - panOffset.y) / zoomLevel;
+      const currentX = (e.clientX - rect.left - effectivePan.x) / zoomLevel;
+      const currentY = (e.clientY - rect.top - effectivePan.y) / zoomLevel;
 
       setNodes(prev => prev.map(n => {
         if (n.id === draggingNodeId) {
@@ -130,7 +234,7 @@ export const GraphCanvas: React.FC<GraphCanvasProps> = ({
         return n;
       }));
     } else if (isDraggingCanvas) {
-      setPanOffset({
+      setUserPanOffset({
         x: e.clientX - dragStart.x,
         y: e.clientY - dragStart.y,
       });
@@ -180,7 +284,11 @@ export const GraphCanvas: React.FC<GraphCanvasProps> = ({
   };
 
   return (
-    <div className="relative flex-1 h-full min-h-[380px] bg-slate-50/70 overflow-hidden flex flex-col select-none">
+    <div className={`transition-all duration-200 flex flex-col select-none ${
+      isMaximized 
+        ? 'fixed inset-0 z-50 bg-white w-screen h-screen' 
+        : 'relative flex-1 h-full min-h-[440px] bg-slate-50/70 overflow-hidden'
+    }`}>
       {/* Top Floating Graph Toolbar with Dropdown Menu */}
       <div className="absolute top-3 left-3 right-3 z-20 flex items-center justify-between pointer-events-none">
         {/* Dropdown Menu for Filters */}
@@ -255,40 +363,65 @@ export const GraphCanvas: React.FC<GraphCanvasProps> = ({
           )}
         </div>
 
-        {/* Canvas Controls: Zoom, Reset, Labels */}
-        <div className="pointer-events-auto flex items-center space-x-1 bg-white/90 backdrop-blur-md border border-slate-200 shadow-sm p-1 rounded-lg text-xs">
+        {/* Canvas Controls: Zoom (hidden when enlarged), Maximize/Minimize, Labels */}
+        <div className="pointer-events-auto flex items-center space-x-1 bg-white/95 backdrop-blur-md border border-slate-200 shadow-sm p-1 rounded-lg text-xs">
+          {!isMaximized && (
+            <>
+              <button
+                type="button"
+                onClick={handleZoomIn}
+                className="p-1 rounded hover:bg-slate-100 text-slate-700 transition-colors"
+                title="Zoom In"
+              >
+                <ZoomIn className="w-4 h-4" />
+              </button>
+              <button
+                type="button"
+                onClick={handleZoomOut}
+                className="p-1 rounded hover:bg-slate-100 text-slate-700 transition-colors"
+                title="Zoom Out"
+              >
+                <ZoomOut className="w-4 h-4" />
+              </button>
+              
+              <button
+                type="button"
+                onClick={handleResetZoomPan}
+                className="px-1.5 py-0.5 rounded text-[11px] font-mono text-slate-600 hover:bg-slate-100 hover:text-indigo-600 font-semibold transition-colors"
+                title="Reset Pan & Zoom"
+              >
+                {Math.round(zoomLevel * 100)}%
+              </button>
+
+              <div className="h-3 w-px bg-slate-200 mx-0.5" />
+            </>
+          )}
+
           <button
-            onClick={() => setZoomLevel(prev => Math.min(prev + 0.15, 2))}
-            className="p-1 rounded hover:bg-slate-100 text-slate-700"
-            title="Zoom In"
-          >
-            <ZoomIn className="w-4 h-4" />
-          </button>
-          <button
-            onClick={() => setZoomLevel(prev => Math.max(prev - 0.15, 0.5))}
-            className="p-1 rounded hover:bg-slate-100 text-slate-700"
-            title="Zoom Out"
-          >
-            <ZoomOut className="w-4 h-4" />
-          </button>
-          <button
-            onClick={() => {
-              setZoomLevel(1);
-              setPanOffset({ x: 0, y: 0 });
-            }}
-            className="p-1 rounded hover:bg-slate-100 text-slate-700"
-            title="Reset Pan & Zoom"
-          >
-            <Maximize2 className="w-3.5 h-3.5" />
-          </button>
-          <div className="h-3 w-px bg-slate-200 mx-0.5" />
-          <button
-            onClick={() => setShowEdgeLabels(!showEdgeLabels)}
-            className={`px-1.5 py-0.5 rounded text-[10px] font-medium flex items-center space-x-1 ${
-              showEdgeLabels ? 'bg-indigo-50 text-indigo-700 border border-indigo-200' : 'text-slate-500 hover:bg-slate-100'
+            type="button"
+            onClick={() => setIsMaximized(prev => !prev)}
+            className={`p-1 rounded transition-colors ${
+              isMaximized ? 'bg-indigo-100 text-indigo-700 hover:bg-indigo-200' : 'hover:bg-slate-100 text-slate-700'
             }`}
+            title={isMaximized ? "Exit Fullscreen (Esc)" : "Enlarge Graph to Fullscreen"}
           >
-            <Eye className="w-3 h-3" />
+            {isMaximized ? (
+              <Minimize2 className="w-4 h-4" />
+            ) : (
+              <Maximize2 className="w-4 h-4" />
+            )}
+          </button>
+
+          <div className="h-3 w-px bg-slate-200 mx-0.5" />
+
+          <button
+            type="button"
+            onClick={() => setShowEdgeLabels(!showEdgeLabels)}
+            className={`px-2 py-0.5 rounded text-[10.5px] font-medium transition-colors ${
+              showEdgeLabels ? 'bg-indigo-50 text-indigo-700 border border-indigo-200 font-semibold' : 'text-slate-500 hover:bg-slate-100 border border-transparent'
+            }`}
+            title="Toggle Edge Labels"
+          >
             <span>Labels</span>
           </button>
         </div>
@@ -302,6 +435,24 @@ export const GraphCanvas: React.FC<GraphCanvasProps> = ({
         onMouseUp={handleMouseUp}
         className={`flex-1 w-full h-full relative cursor-${isDraggingCanvas ? 'grabbing' : 'grab'}`}
       >
+        {/* Empty Canvas Placeholder when no case is selected */}
+        {nodes.length === 0 && (
+          <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none select-none z-10 p-6">
+            <div className="relative flex items-center justify-center mb-4">
+              <div className="w-16 h-16 rounded-full border border-dashed border-slate-300 flex items-center justify-center animate-[spin_20s_linear_infinite]" />
+              <div className="absolute w-10 h-10 rounded-full bg-white border border-slate-200/90 shadow-2xs flex items-center justify-center text-slate-400">
+                <Layers className="w-5 h-5 text-indigo-500/80" />
+              </div>
+            </div>
+            <div className="text-xs font-bold text-slate-700 font-mono tracking-widest uppercase">
+              Topology Engine Ready
+            </div>
+            <div className="text-[11.5px] text-slate-400 mt-1.5 max-w-sm text-center font-normal leading-relaxed">
+              Select an investigation case from the dropdown to map real-time transaction topologies, device links, and entity clusters.
+            </div>
+          </div>
+        )}
+
         <svg 
           className="w-full h-full"
           style={{
@@ -309,7 +460,7 @@ export const GraphCanvas: React.FC<GraphCanvasProps> = ({
             backgroundSize: '20px 20px',
           }}
         >
-          <g transform={`translate(${panOffset.x}, ${panOffset.y}) scale(${zoomLevel})`}>
+          <g transform={`translate(${effectivePan.x}, ${effectivePan.y}) scale(${zoomLevel})`}>
             {/* Coordinated Ring Cluster Bounding Aura matching Image 3 */}
             {fraudRingNodes.length > 0 && (
               <g className="pointer-events-none">
@@ -547,33 +698,40 @@ export const GraphCanvas: React.FC<GraphCanvasProps> = ({
 
       {/* Legend Footer */}
       <div className="h-8 bg-white border-t border-slate-200 px-4 flex items-center justify-between text-[10px] text-slate-500">
-        <div className="flex items-center space-x-3">
-          <span className="font-bold text-slate-700 uppercase">Topology Subgraph:</span>
-          <span className="flex items-center space-x-1">
-            <span className="w-2 h-2 rounded-full bg-slate-800" />
-            <span>Transaction</span>
-          </span>
-          <span className="flex items-center space-x-1">
-            <span className="w-2 h-2 rounded-full bg-emerald-500" />
-            <span>Device</span>
-          </span>
-          <span className="flex items-center space-x-1">
-            <span className="w-2 h-2 rounded-full bg-purple-500" />
-            <span>Card</span>
-          </span>
-          <span className="flex items-center space-x-1">
-            <span className="w-2 h-2 rounded-full bg-sky-500" />
-            <span>Account</span>
-          </span>
-          <span className="flex items-center space-x-1">
-            <span className="w-2 h-2 rounded-full bg-amber-500" />
-            <span>IP Address</span>
-          </span>
-          <span className="flex items-center space-x-1">
-            <span className="w-2 h-2 rounded-full bg-rose-500" />
-            <span>Prior Case (Memory)</span>
-          </span>
-        </div>
+        {nodes.length > 0 ? (
+          <div className="flex items-center space-x-3">
+            <span className="font-bold text-slate-700 uppercase">Topology Subgraph:</span>
+            <span className="flex items-center space-x-1">
+              <span className="w-2 h-2 rounded-full bg-slate-800" />
+              <span>Transaction</span>
+            </span>
+            <span className="flex items-center space-x-1">
+              <span className="w-2 h-2 rounded-full bg-emerald-500" />
+              <span>Device</span>
+            </span>
+            <span className="flex items-center space-x-1">
+              <span className="w-2 h-2 rounded-full bg-purple-500" />
+              <span>Card</span>
+            </span>
+            <span className="flex items-center space-x-1">
+              <span className="w-2 h-2 rounded-full bg-sky-500" />
+              <span>Account</span>
+            </span>
+            <span className="flex items-center space-x-1">
+              <span className="w-2 h-2 rounded-full bg-amber-500" />
+              <span>IP Address</span>
+            </span>
+            <span className="flex items-center space-x-1">
+              <span className="w-2 h-2 rounded-full bg-rose-500" />
+              <span>Prior Case (Memory)</span>
+            </span>
+          </div>
+        ) : (
+          <div className="flex items-center space-x-2 text-slate-400">
+            <span className="font-bold uppercase">Topology Subgraph:</span>
+            <span className="italic">No case selected</span>
+          </div>
+        )}
 
         <div className="flex items-center space-x-1.5 text-slate-400">
           <Move className="w-3 h-3" />

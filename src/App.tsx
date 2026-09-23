@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { Header } from './components/layout/Header';
+import { CaseSelectorPanel } from './components/layout/CaseSelectorPanel';
 import { CaseTabBar } from './components/layout/CaseTabBar';
 import { CaseSummaryCard } from './components/investigation/CaseSummaryCard';
 import { GraphCanvas } from './components/investigation/GraphCanvas';
@@ -24,8 +25,8 @@ export const App: React.FC = () => {
   const [isLlmInspectorOpen, setIsLlmInspectorOpen] = useState<boolean>(false);
   const [isExportModalOpen, setIsExportModalOpen] = useState<boolean>(false);
 
-  // Active case accessor
-  const activeCase = cases.find(c => c.case_id === activeCaseId) || cases[0];
+  // Active case accessor: null if no case is active
+  const activeCase = cases.find(c => c.case_id === activeCaseId) || null;
 
   // Select tab handler (switching between already open cases)
   const handleSelectTab = (caseId: string) => {
@@ -42,20 +43,23 @@ export const App: React.FC = () => {
     setActiveStepIndex(5);
   };
 
-  // Close tab handler
+  // Close tab handler - ALLOWS CLOSING ALL TABS
   const handleCloseTab = (caseId: string) => {
-    if (openCaseIds.length <= 1) return; // Keep at least one tab open
     const newOpenIds = openCaseIds.filter(id => id !== caseId);
     setOpenCaseIds(newOpenIds);
     if (activeCaseId === caseId) {
-      setActiveCaseId(newOpenIds[newOpenIds.length - 1]);
+      if (newOpenIds.length > 0) {
+        setActiveCaseId(newOpenIds[newOpenIds.length - 1]);
+      } else {
+        setActiveCaseId('');
+      }
       setActiveStepIndex(5);
     }
   };
 
   // Run autonomous investigation simulation with realistic micro-delays
   const handleRunAutonomousInvestigation = () => {
-    if (isInvestigating) return;
+    if (isInvestigating || !activeCase) return;
     setIsInvestigating(true);
     setActiveStepIndex(0);
 
@@ -78,20 +82,29 @@ export const App: React.FC = () => {
       {/* Top Header: Platform Branding */}
       <Header />
 
-      {/* Browser-Styled Case Tab Bar with Colored Status Dots & Right-Aligned Dropdown */}
-      <CaseTabBar
-        openCaseIds={openCaseIds}
-        activeCaseId={activeCase.case_id}
-        allCases={cases}
-        onSelectTab={handleSelectTab}
-        onCloseTab={handleCloseTab}
-        onOpenCase={handleOpenCase}
-      />
-
-      {/* Main Investigation Workspace: Investigation Core (flex-1) + Decision & SAR (340px) */}
+      {/* 3-Column Cockpit Grid: Left Case Space (280px) + Middle Larger Box (flex-1) + Right Decision & SAR (320px) */}
       <main className="flex-1 flex overflow-hidden min-h-0">
-        {/* Investigation Core */}
+        {/* Column 1: Left Separate Space for Case Dropbox & Selection (280px) */}
+        <section className="w-[280px] shrink-0 h-full flex flex-col bg-slate-50/70 border-r border-slate-200" aria-label="Case Management">
+          <CaseSelectorPanel
+            activeCase={activeCase}
+            allCases={cases}
+            openCaseIds={openCaseIds}
+            onOpenCase={handleOpenCase}
+          />
+        </section>
+
+        {/* Column 2: Investigation Core - Larger Middle Box (flex-1) */}
         <section className="flex-1 flex flex-col h-full min-w-0 bg-white border-r border-slate-200 overflow-hidden" aria-label="Investigation Core">
+          {/* Browser-Styled Case Tab Bar */}
+          <CaseTabBar
+            openCaseIds={openCaseIds}
+            activeCaseId={activeCase ? activeCase.case_id : ''}
+            allCases={cases}
+            onSelectTab={handleSelectTab}
+            onCloseTab={handleCloseTab}
+          />
+
           {/* Top Summary Card */}
           <CaseSummaryCard
             currentCase={activeCase}
@@ -102,43 +115,44 @@ export const App: React.FC = () => {
           {/* Interactive Topology Graph Canvas with Node Inspector */}
           <div className="flex-1 min-h-0 relative flex flex-col">
             <GraphCanvas
-              nodes={activeCase.graph_nodes}
-              edges={activeCase.graph_edges}
-              caseId={activeCase.case_id}
+              nodes={activeCase ? activeCase.graph_nodes : []}
+              edges={activeCase ? activeCase.graph_edges : []}
+              caseId={activeCase ? activeCase.case_id : ''}
               isInvestigating={isInvestigating}
             />
           </div>
 
           {/* Stepper Feed */}
           <AgentStepper
-            steps={activeCase.execution_steps}
+            steps={activeCase ? activeCase.execution_steps : []}
             isInvestigating={isInvestigating}
             activeStepIndex={activeStepIndex}
           />
         </section>
 
-        {/* Right Decision Engine, Policy Gates & SAR (340px) */}
-        <section className="w-[340px] shrink-0 h-full flex flex-col bg-slate-50/70 overflow-hidden" aria-label="Decision Engine and Policy Gates">
+        {/* Column 3: Decision Engine, Policy Gates & SAR (320px) */}
+        <section className="w-[320px] shrink-0 h-full flex flex-col bg-slate-50/70 overflow-hidden" aria-label="Decision Engine and Policy Gates">
           <div className="flex-1 overflow-y-auto p-3.5 space-y-3.5">
             {/* Next-Best Action Progression */}
             <NbaProgressionCard
-              preNba={activeCase.pre_evidence_nba}
-              evidenceInjected={activeCase.evidence_injected}
-              postNba={activeCase.post_evidence_nba}
+              preNba={activeCase?.pre_evidence_nba}
+              evidenceInjected={activeCase?.evidence_injected}
+              postNba={activeCase?.post_evidence_nba}
               isInvestigating={isInvestigating}
             />
 
             {/* Policy Citations */}
             <PolicyAccordion
-              evidencePack={activeCase.evidence_pack}
+              evidencePack={activeCase?.evidence_pack}
             />
 
             {/* Suspicious Activity Report (SAR) */}
             <SarGenerator
-              sarReport={activeCase.sar_report}
-              caseId={activeCase.case_id}
-              sarStatus={activeCase.sar_status || (activeCase.status.startsWith('resolved') ? 'Cleared' : 'Pending')}
+              sarReport={activeCase?.sar_report}
+              caseId={activeCase?.case_id}
+              sarStatus={activeCase?.sar_status || (activeCase?.status?.startsWith('resolved') ? 'Cleared' : 'Pending')}
               onStatusChange={(newStatus) => {
+                if (!activeCase) return;
                 setCases(prev => prev.map(c => 
                   c.case_id === activeCase.case_id 
                     ? { ...c, sar_status: newStatus } 
@@ -154,7 +168,7 @@ export const App: React.FC = () => {
       <LlmInspectorModal
         isOpen={isLlmInspectorOpen}
         onClose={() => setIsLlmInspectorOpen(false)}
-        activeCase={activeCase}
+        activeCase={activeCase || cases[0]}
       />
 
       <ExportSubmissionModal
