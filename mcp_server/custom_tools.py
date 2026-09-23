@@ -44,8 +44,14 @@ def _load_env(env_path: str = r"C:\HHGoa\.env") -> Dict[str, str]:
     return env
 
 
-# -- Shared connection (Community Edition, no token) --------------------------
+# -- Shared connection (Cached Singleton) -------------------------------------
+_CONN: tg.TigerGraphConnection | None = None
+
+
 def _get_sync_conn() -> tg.TigerGraphConnection:
+    global _CONN
+    if _CONN is not None:
+        return _CONN
     env = _load_env()
     conn = tg.TigerGraphConnection(
         host=env.get("TG_HOST", "http://localhost"),
@@ -53,7 +59,12 @@ def _get_sync_conn() -> tg.TigerGraphConnection:
         username=env.get("TG_USERNAME", "tigergraph"),
         password=env.get("TG_PASSWORD", "tigergraph"),
     )
-    return conn
+    try:
+        conn.getToken(conn.createSecret())
+    except Exception:
+        pass
+    _CONN = conn
+    return _CONN
 
 
 # =============================================================================
