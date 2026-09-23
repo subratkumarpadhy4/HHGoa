@@ -5,10 +5,7 @@ import {
   Clock, 
   Play, 
   Activity, 
-  Layers, 
-  AlertTriangle,
-  ShieldCheck,
-  AlertCircle
+  Layers
 } from 'lucide-react';
 import type { BenchmarkCase } from '../../types/investigation';
 
@@ -18,58 +15,6 @@ interface CaseSummaryCardProps {
   onRunInvestigation: () => void;
 }
 
-function CircularAnomalyGauge({ score }: { score: number }) {
-  const pct = Math.round(score * 100);
-  const radius = 17;
-  const circumference = 2 * Math.PI * radius; // ~106.81
-  const strokeDashoffset = circumference - (score * circumference);
-  
-  const strokeColor = score >= 0.75 
-    ? '#E11D48' // Rose 600
-    : score >= 0.45 
-    ? '#D97706' // Amber 600
-    : score > 0 
-    ? '#059669' // Emerald 600
-    : '#CBD5E1'; // Slate 300
-
-  return (
-    <div className="relative w-11 h-11 flex items-center justify-center shrink-0">
-      <svg className="w-11 h-11 -rotate-90" viewBox="0 0 44 44">
-        {/* Background track circle */}
-        <circle
-          cx="22"
-          cy="22"
-          r={radius}
-          fill="none"
-          stroke="#F1F5F9"
-          strokeWidth="3.5"
-        />
-        {/* Active progress circle */}
-        <circle
-          cx="22"
-          cy="22"
-          r={radius}
-          fill="none"
-          stroke={strokeColor}
-          strokeWidth="3.5"
-          strokeLinecap="round"
-          strokeDasharray={circumference}
-          strokeDashoffset={score > 0 ? strokeDashoffset : circumference}
-          style={{ transition: 'stroke-dashoffset 0.7s cubic-bezier(0.4, 0, 0.2, 1), stroke 0.3s ease' }}
-        />
-      </svg>
-      {/* Center percentage */}
-      <div className="absolute inset-0 flex flex-col items-center justify-center select-none pointer-events-none">
-        <span 
-          className="text-[11px] font-mono font-extrabold tracking-tighter leading-none"
-          style={{ color: score > 0 ? strokeColor : '#94A3B8' }}
-        >
-          {pct}%
-        </span>
-      </div>
-    </div>
-  );
-}
 
 export const CaseSummaryCard: React.FC<CaseSummaryCardProps> = ({
   currentCase,
@@ -118,52 +63,46 @@ export const CaseSummaryCard: React.FC<CaseSummaryCardProps> = ({
           </div>
 
           <div className="flex items-center gap-3">
-            {/* Standby Model Anomaly Box */}
-            <div className="flex items-center gap-3 px-3.5 py-1.5 rounded-xl border border-slate-200 bg-slate-50/50 shadow-2xs">
-              <CircularAnomalyGauge score={0} />
-              <div className="flex flex-col min-w-[115px]">
-                <div className="flex items-center justify-between text-[11px]">
-                  <span className="font-semibold text-slate-400 uppercase tracking-wider text-[9px] font-mono">
-                    Model Anomaly
-                  </span>
-                  <span className="font-mono font-medium text-slate-400 text-[11px]">0%</span>
-                </div>
-                <div className="flex items-center gap-1 my-1">
-                  <div className="h-1.5 flex-1 rounded-full bg-slate-200" />
-                  <div className="h-1.5 flex-1 rounded-full bg-slate-200" />
-                  <div className="h-1.5 flex-1 rounded-full bg-slate-200" />
-                </div>
-                <div className="flex items-center justify-between">
-                  <span className="text-[9.5px] font-bold text-slate-400 uppercase tracking-wider font-mono">
-                    Engine Ready
-                  </span>
-                  <span className="text-[8.5px] font-medium text-slate-300 font-mono">Standby</span>
-                </div>
+            {/* Standby Model Anomaly Card — flat structure, no ring */}
+            <div className="flex flex-col px-5 py-[10px] rounded-xl border border-slate-200 bg-slate-50/50 shadow-2xs min-w-[145px]">
+              {/* Header row: title left, badge right */}
+              <div className="flex items-center justify-between">
+                <span className="text-[11px] font-semibold text-slate-400 font-mono uppercase tracking-wider">
+                  Model anomaly
+                </span>
+                <span className="px-2 py-0.5 rounded text-[11px] font-semibold bg-slate-100 text-slate-400 border border-slate-200">
+                  Idle
+                </span>
               </div>
+              {/* Primary metric — large and unambiguous */}
+              <div className="text-[22px] font-bold font-mono text-slate-300 leading-none mt-3 mb-3">
+                0.00
+              </div>
+              {/* Single flat progress bar — minimum 12px margin above (from metric) and below (to caption) */}
+              <div className="w-full h-1.5 rounded-full bg-slate-200 mb-3" />
+              {/* Caption — one line, muted */}
+              <span className="text-[11px] text-slate-400 font-mono">ML score</span>
             </div>
 
-            {/* Standby Uncertainty Box */}
-            <div className="flex flex-col px-3.5 py-1.5 rounded-xl border border-slate-200 bg-slate-50/50 shadow-2xs min-w-[185px]">
-              <div className="flex items-center justify-between text-[11px]">
-                <span className="flex items-center gap-1 font-semibold text-slate-400">
-                  <ShieldCheck className="w-3.5 h-3.5 text-slate-300" />
-                  <span className="uppercase text-[9px] tracking-wider font-mono">Uncertainty</span>
+            {/* Standby Uncertainty Card — same card structure as Model Anomaly */}
+            <div className="flex flex-col px-5 py-[10px] rounded-xl border border-slate-200 bg-slate-50/50 shadow-2xs min-w-[175px]">
+              {/* Header row: title left, badge right */}
+              <div className="flex items-center justify-between">
+                <span className="text-[11px] font-semibold text-slate-400 font-mono uppercase tracking-wider">
+                  Uncertainty
                 </span>
-                <span className="px-1.5 py-0.2 rounded text-[9px] font-bold uppercase font-mono bg-slate-100 text-slate-400 border border-slate-200">
-                  IDLE
-                </span>
-              </div>
-              <div className="relative w-full h-1.5 bg-slate-200 rounded-full my-1 overflow-hidden">
-                <div className="absolute top-0 bottom-0 w-0.5 bg-slate-300 z-10" style={{ left: '83%' }} />
-              </div>
-              <div className="flex items-center justify-between text-[10px]">
-                <span className="text-slate-400 font-mono text-[9.5px]">
-                  Sufficiency: <strong className="text-slate-400 font-normal">— / 2.5</strong>
-                </span>
-                <span className="text-[9px] font-semibold uppercase text-slate-400 font-mono">
-                  Standby
+                <span className="px-2 py-0.5 rounded text-[11px] font-semibold bg-slate-100 text-slate-400 border border-slate-200">
+                  Idle
                 </span>
               </div>
+              {/* Primary metric — sufficiency ratio, large */}
+              <div className="text-[22px] font-bold font-mono text-slate-300 leading-none mt-3 mb-3">
+                — / 2.5
+              </div>
+              {/* Single flat progress bar */}
+              <div className="w-full h-1.5 rounded-full bg-slate-200 mb-3" />
+              {/* Verdict caption — plain muted text, NOT a badge */}
+              <span className="text-[11px] text-slate-400 font-mono">Standby</span>
             </div>
 
             <button
@@ -235,129 +174,89 @@ export const CaseSummaryCard: React.FC<CaseSummaryCardProps> = ({
 
         {/* Right: Model Anomaly Card, Uncertainty Meter Card & Run CTA */}
         <div className="flex items-center gap-3">
-          {/* Card 1: Modern Circular Model Anomaly Card */}
-          <div className="flex items-center gap-3 px-3.5 py-1.5 rounded-xl border border-slate-200/90 bg-white shadow-2xs">
-            <CircularAnomalyGauge score={initial_risk_score} />
-            <div className="flex flex-col min-w-[115px]">
-              <div className="flex items-center justify-between text-[11px]">
-                <span className="font-semibold text-slate-500 uppercase tracking-wider text-[9px] font-mono">
-                  Model Anomaly
-                </span>
-                <span className={`font-mono font-black text-[11px] ${
-                  initial_risk_score >= 0.75 
-                    ? 'text-rose-600' 
-                    : initial_risk_score >= 0.45 
-                    ? 'text-amber-600' 
-                    : 'text-emerald-600'
+          {/* Card 1: Model Anomaly — flat card, no ring */}
+          {(() => {
+            const anomalySeverity = initial_risk_score >= 0.75 ? 'Critical' : initial_risk_score >= 0.45 ? 'Elevated' : 'Normal';
+            const anomalyBarColor = initial_risk_score >= 0.75 ? 'bg-rose-500' : initial_risk_score >= 0.45 ? 'bg-amber-500' : 'bg-emerald-500';
+            const anomalyBadgeStyle = initial_risk_score >= 0.75
+              ? 'bg-rose-50 text-rose-700 border-rose-200'
+              : initial_risk_score >= 0.45
+              ? 'bg-amber-50 text-amber-700 border-amber-200'
+              : 'bg-emerald-50 text-emerald-700 border-emerald-200';
+            return (
+              <div className="flex flex-col px-5 py-[10px] rounded-xl border border-slate-200/90 bg-white shadow-2xs min-w-[145px]">
+                {/* Header row: title left, one severity badge right */}
+                <div className="flex items-center justify-between">
+                  <span className="text-[11px] font-semibold text-slate-500 font-mono uppercase tracking-wider">
+                    Model anomaly
+                  </span>
+                  <span className={`px-2 py-0.5 rounded text-[11px] font-semibold border ${anomalyBadgeStyle}`}>
+                    {anomalySeverity}
+                  </span>
+                </div>
+                {/* Primary metric — large flat number, most visual weight */}
+                <div className={`text-[22px] font-bold font-mono leading-none mt-3 mb-3 ${
+                  initial_risk_score >= 0.75 ? 'text-rose-600' : initial_risk_score >= 0.45 ? 'text-amber-600' : 'text-emerald-600'
                 }`}>
                   {initial_risk_score.toFixed(2)}
-                </span>
+                </div>
+                {/* Single flat progress bar — no segments, no gradients */}
+                <div className="w-full h-1.5 rounded-full bg-slate-200 mb-3 overflow-hidden">
+                  <div
+                    className={`h-full rounded-full transition-all duration-500 ${anomalyBarColor}`}
+                    style={{ width: `${Math.round(initial_risk_score * 100)}%` }}
+                  />
+                </div>
+                {/* Caption — one line only */}
+                <span className="text-[11px] text-slate-400 font-mono">ML score</span>
               </div>
+            );
+          })()}
 
-              {/* 3-tier risk segment pill indicator */}
-              <div className="flex items-center gap-1 my-1">
-                <div 
-                  className={`h-1.5 flex-1 rounded-full transition-colors ${
-                    initial_risk_score > 0 ? 'bg-emerald-500' : 'bg-slate-200'
-                  }`}
-                  title="Low Anomaly (<45%)"
-                />
-                <div 
-                  className={`h-1.5 flex-1 rounded-full transition-colors ${
-                    initial_risk_score >= 0.45 ? 'bg-amber-500' : 'bg-slate-200'
-                  }`}
-                  title="Elevated Velocity (45% - 74%)"
-                />
-                <div 
-                  className={`h-1.5 flex-1 rounded-full transition-colors ${
-                    initial_risk_score >= 0.75 ? 'bg-rose-500' : 'bg-slate-200'
-                  }`}
-                  title="Critical Anomaly (>=75%)"
-                />
-              </div>
-
-              <div className="flex items-center justify-between">
-                <span className={`text-[9.5px] font-extrabold uppercase font-mono tracking-tight ${
-                  initial_risk_score >= 0.75 
-                    ? 'text-rose-600' 
-                    : initial_risk_score >= 0.45 
-                    ? 'text-amber-600' 
-                    : 'text-emerald-600'
-                }`}>
-                  {initial_risk_score >= 0.75 ? 'Critical Deviance' : initial_risk_score >= 0.45 ? 'Elevated Velocity' : 'Baseline Normal'}
-                </span>
-                <span className="text-[8.5px] font-medium text-slate-400 font-mono">ML Score</span>
-              </div>
-            </div>
-          </div>
-
-          {/* Card 2: Modern Dynamic Uncertainty Meter & Sufficiency Card */}
-          <div className={`flex flex-col px-3.5 py-1.5 rounded-xl border shadow-2xs min-w-[185px] transition-colors ${
-            isLowUncertainty || isContradictory
-              ? 'border-emerald-200/90 bg-emerald-50/30'
+          {/* Card 2: Uncertainty — same card structure as Model Anomaly */}
+          {(() => {
+            const uncertaintyBadgeStyle = isLowUncertainty || isContradictory
+              ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
               : uncertainty === 'MEDIUM'
-              ? 'border-amber-200/90 bg-amber-50/30'
-              : 'border-rose-200/90 bg-rose-50/30'
-          }`}>
-            <div className="flex items-center justify-between text-[11px]">
-              <span className={`flex items-center gap-1 font-semibold ${
-                isLowUncertainty || isContradictory
-                  ? 'text-emerald-700'
-                  : uncertainty === 'MEDIUM'
-                  ? 'text-amber-700'
-                  : 'text-rose-700'
-              }`}>
-                {isLowUncertainty || isContradictory ? (
-                  <ShieldCheck className="w-3.5 h-3.5 text-emerald-600 stroke-[2.3]" />
-                ) : uncertainty === 'MEDIUM' ? (
-                  <AlertCircle className="w-3.5 h-3.5 text-amber-600 stroke-[2.3]" />
-                ) : (
-                  <AlertTriangle className="w-3.5 h-3.5 text-rose-600 stroke-[2.3]" />
-                )}
-                <span className="uppercase text-[9px] tracking-wider font-mono">Uncertainty</span>
-              </span>
-              <span className={`px-1.5 py-0.2 rounded text-[9px] font-black uppercase font-mono ${
-                isLowUncertainty || isContradictory
-                  ? 'bg-emerald-100 text-emerald-800 border border-emerald-300'
-                  : uncertainty === 'MEDIUM'
-                  ? 'bg-amber-100 text-amber-800 border border-amber-300'
-                  : 'bg-rose-100 text-rose-800 border border-rose-300'
-              }`}>
-                {uncertainty}
-              </span>
-            </div>
-
-            {/* Sufficiency Progress Bar with Threshold Marker */}
-            <div className="relative w-full h-1.5 bg-slate-200/80 rounded-full my-1 overflow-hidden">
-              <div 
-                className={`h-full rounded-full transition-all duration-500 ${
-                  isContradictory ? 'bg-emerald-500' : isSufficient ? 'bg-indigo-600' : 'bg-amber-500'
-                }`}
-                style={{ width: `${scorePct}%` }}
-              />
-              {/* Threshold tick at 2.5 on a 3.0 scale */}
-              <div 
-                className="absolute top-0 bottom-0 w-0.5 bg-slate-400 z-10" 
-                style={{ left: `${thresholdPct}%` }}
-                title="Sufficiency Threshold 2.5"
-              />
-            </div>
-
-            <div className="flex items-center justify-between text-[10px]">
-              <span className="text-slate-600 font-mono text-[9.5px]">
-                Sufficiency: <strong className="text-slate-900">{uncertainty_dimensions.calculated_score.toFixed(1)}</strong> / {uncertainty_dimensions.threshold}
-              </span>
-              <span className={`px-1.5 py-0.2 rounded text-[8.5px] font-black uppercase font-mono ${
-                isContradictory
-                  ? 'bg-emerald-100 text-emerald-800 border border-emerald-300'
-                  : isSufficient
-                  ? 'bg-indigo-100 text-indigo-800 border border-indigo-300'
-                  : 'bg-amber-100 text-amber-800 border border-amber-300'
-              }`}>
-                {uncertainty_dimensions.status}
-              </span>
-            </div>
-          </div>
+              ? 'bg-amber-50 text-amber-700 border-amber-200'
+              : 'bg-rose-50 text-rose-700 border-rose-200';
+            const uncertaintyBarColor = isContradictory ? 'bg-emerald-500' : isSufficient ? 'bg-indigo-500' : 'bg-amber-500';
+            // Capitalize the uncertainty label: HIGH → High
+            const uncertaintyLabel = uncertainty.charAt(0) + uncertainty.slice(1).toLowerCase();
+            // Verdict as plain text — not a badge
+            const verdictLabel = uncertainty_dimensions.status.charAt(0) + uncertainty_dimensions.status.slice(1).toLowerCase();
+            return (
+              <div className="flex flex-col px-5 py-[10px] rounded-xl border border-slate-200/90 bg-white shadow-2xs min-w-[175px]">
+                {/* Header row: title left, one uncertainty badge right */}
+                <div className="flex items-center justify-between">
+                  <span className="text-[11px] font-semibold text-slate-500 font-mono uppercase tracking-wider">
+                    Uncertainty
+                  </span>
+                  <span className={`px-2 py-0.5 rounded text-[11px] font-semibold border ${uncertaintyBadgeStyle}`}>
+                    {uncertaintyLabel}
+                  </span>
+                </div>
+                {/* Primary metric — sufficiency ratio, large */}
+                <div className="text-[22px] font-bold font-mono text-slate-800 leading-none mt-3 mb-3">
+                  {uncertainty_dimensions.calculated_score.toFixed(1)}&thinsp;/&thinsp;{uncertainty_dimensions.threshold}
+                </div>
+                {/* Single flat progress bar with threshold marker */}
+                <div className="relative w-full h-1.5 rounded-full bg-slate-200 mb-3 overflow-hidden">
+                  <div
+                    className={`h-full rounded-full transition-all duration-500 ${uncertaintyBarColor}`}
+                    style={{ width: `${scorePct}%` }}
+                  />
+                  <div
+                    className="absolute top-0 bottom-0 w-0.5 bg-slate-500 z-10"
+                    style={{ left: `${thresholdPct}%` }}
+                    title="Sufficiency threshold 2.5"
+                  />
+                </div>
+                {/* Verdict — plain muted text, NOT a second badge */}
+                <span className="text-[11px] text-slate-400 font-mono">{verdictLabel}</span>
+              </div>
+            );
+          })()}
 
           {/* Run Autonomous Investigation Button */}
           <button
