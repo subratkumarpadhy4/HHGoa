@@ -1,32 +1,45 @@
-# React + TypeScript + Vite
+# HHGoa - Fraud Investigation System (Monorepo)
 
-This template provides a minimal setup to get React working in Vite with HMR and some Oxlint rules.
+A hybrid AI-powered fraud investigation system integrating graph neural networks, TigerGraph knowledge graph memory, Model Context Protocol (MCP), and interactive React analytics.
 
-Currently, two official plugins are available:
+## Project Structure
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
-
-## React Compiler
-
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
-
-## Expanding the Oxlint configuration
-
-If you are developing a production application, we recommend enabling type-aware lint rules by installing `oxlint-tsgolint` and editing `.oxlintrc.json`:
-
-```json
-{
-  "$schema": "./node_modules/oxlint/configuration_schema.json",
-  "plugins": ["react", "typescript", "oxc"],
-  "options": {
-    "typeAware": true
-  },
-  "rules": {
-    "react/rules-of-hooks": "error",
-    "react/only-export-components": ["warn", { "allowConstantExport": true }]
-  }
-}
+```
+HHGoa/
+├── frontend/          # React + Vite + TypeScript interactive fraud workbench
+├── mcp_server/        # TigerGraph MCP Server & custom fraud investigation tools
+├── scripts/           # Graph loaders, count verification, and dataset utilities
+├── schema/            # TigerGraph GSQL graph schema definition
+├── .env.example       # Environment template
+├── mcp_config.json    # MCP Server configuration
+├── requirements.txt   # Python backend dependencies
+└── README.md
 ```
 
-See the [Oxlint rules documentation](https://oxc.rs/docs/guide/usage/linter/rules) for the full list of rules and categories.
+## Quick Start
+
+### 1. Backend Setup
+```powershell
+python -m venv .venv
+.venv\Scripts\activate
+pip install -r requirements.txt
+cp .env.example .env
+```
+
+### 2. TigerGraph Loading
+```powershell
+python scripts/load_minimal.py
+python scripts/verify_counts.py
+```
+
+### 3. MCP Server
+```powershell
+python -m mcp_server.run_server
+```
+
+### 4. Frontend Setup
+```powershell
+cd frontend
+npm install
+npm run dev
+```
