@@ -287,7 +287,7 @@ export const GraphCanvas: React.FC<GraphCanvasProps> = ({
     <div className={`transition-all duration-200 flex flex-col select-none ${
       isMaximized 
         ? 'fixed inset-0 z-50 bg-white w-screen h-screen' 
-        : 'relative flex-1 h-full min-h-[440px] bg-slate-50/70 overflow-hidden'
+        : 'relative flex-1 min-h-0 w-full bg-slate-50/70 overflow-hidden'
     }`}>
       {/* Top Floating Graph Toolbar with Dropdown Menu */}
       <div className="absolute top-3 left-3 right-3 z-20 flex items-center justify-between pointer-events-none">
@@ -433,7 +433,7 @@ export const GraphCanvas: React.FC<GraphCanvasProps> = ({
         onMouseDown={handleCanvasMouseDown}
         onMouseMove={handleMouseMove}
         onMouseUp={handleMouseUp}
-        className={`flex-1 w-full h-full relative cursor-${isDraggingCanvas ? 'grabbing' : 'grab'}`}
+        className={`flex-1 min-h-0 w-full relative overflow-hidden cursor-${isDraggingCanvas ? 'grabbing' : 'grab'}`}
       >
         {/* Empty Canvas Placeholder when no case is selected */}
         {nodes.length === 0 && (
@@ -697,7 +697,7 @@ export const GraphCanvas: React.FC<GraphCanvasProps> = ({
       </div>
 
       {/* Legend Footer */}
-      <div className="h-8 bg-white border-t border-slate-200 px-4 flex items-center justify-between text-[10px] text-slate-500">
+      <div className="h-8 bg-white border-t border-slate-200 px-4 flex items-center justify-between text-[10px] text-slate-500 shrink-0">
         {nodes.length > 0 ? (
           <div className="flex items-center space-x-3">
             <span className="font-bold text-slate-700 uppercase">Topology Subgraph:</span>

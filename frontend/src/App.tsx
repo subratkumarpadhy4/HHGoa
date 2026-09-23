@@ -22,7 +22,6 @@ export const App: React.FC = () => {
   const [activeCaseId, setActiveCaseId] = useState<string>(BENCHMARK_CASES[0].case_id);
   const [isInvestigating, setIsInvestigating] = useState<boolean>(false);
   const [isTerminalOpen, setIsTerminalOpen] = useState<boolean>(false);
-  const [activeStepIndex, setActiveStepIndex] = useState<number>(5);
   const [isLlmInspectorOpen, setIsLlmInspectorOpen] = useState<boolean>(false);
   const [isExportModalOpen, setIsExportModalOpen] = useState<boolean>(false);
 
@@ -32,7 +31,6 @@ export const App: React.FC = () => {
   // Select tab handler (switching between already open cases)
   const handleSelectTab = (caseId: string) => {
     setActiveCaseId(caseId);
-    setActiveStepIndex(5);
   };
 
   // Open case from dropdown (adds as a new tab if not open, and switches to it in the same window)
@@ -41,7 +39,6 @@ export const App: React.FC = () => {
       setOpenCaseIds(prev => [...prev, caseId]);
     }
     setActiveCaseId(caseId);
-    setActiveStepIndex(5);
   };
 
   // Close tab handler - ALLOWS CLOSING ALL TABS
@@ -54,7 +51,6 @@ export const App: React.FC = () => {
       } else {
         setActiveCaseId('');
       }
-      setActiveStepIndex(5);
     }
   };
 
@@ -63,7 +59,6 @@ export const App: React.FC = () => {
     if (isInvestigating || !activeCase) return;
     setIsTerminalOpen(true);   // ← open terminal immediately
     setIsInvestigating(true);
-    setActiveStepIndex(0);
 
     const stepIntervals = [500, 900, 800, 1100, 700];
     let cumulative = 0;
@@ -71,7 +66,6 @@ export const App: React.FC = () => {
     stepIntervals.forEach((duration, idx) => {
       cumulative += duration;
       setTimeout(() => {
-        setActiveStepIndex(idx + 1);
         if (idx === stepIntervals.length - 1) {
           setIsInvestigating(false);
         }
@@ -115,7 +109,7 @@ export const App: React.FC = () => {
           />
 
           {/* Interactive Topology Graph Canvas — full flex height */}
-          <div className="flex-1 min-h-0 relative flex flex-col">
+          <div className="flex-1 min-h-0 relative flex flex-col overflow-hidden">
             <GraphCanvas
               nodes={activeCase ? activeCase.graph_nodes : []}
               edges={activeCase ? activeCase.graph_edges : []}
