@@ -114,7 +114,7 @@ export const App: React.FC = () => {
             onRunInvestigation={handleRunAutonomousInvestigation}
           />
 
-          {/* Interactive Topology Graph Canvas — now full height, no overlap */}
+          {/* Interactive Topology Graph Canvas — full flex height */}
           <div className="flex-1 min-h-0 relative flex flex-col">
             <GraphCanvas
               nodes={activeCase ? activeCase.graph_nodes : []}
@@ -123,6 +123,14 @@ export const App: React.FC = () => {
               isInvestigating={isInvestigating}
             />
           </div>
+
+          {/* Terminal — inline below graph, only visible when open */}
+          <InvestigationTerminal
+            isOpen={isTerminalOpen}
+            steps={activeCase ? activeCase.execution_steps : []}
+            isInvestigating={isInvestigating}
+            onClose={() => setIsTerminalOpen(false)}
+          />
         </section>
 
         {/* Column 3: Decision Engine, Policy Gates & SAR (320px) */}
@@ -158,15 +166,6 @@ export const App: React.FC = () => {
           </div>
         </section>
       </main>
-
-      {/* Investigation Terminal — fixed overlay, slides up from bottom, never affects layout */}
-      <InvestigationTerminal
-        isOpen={isTerminalOpen}
-        steps={activeCase ? activeCase.execution_steps : []}
-        isInvestigating={isInvestigating}
-        caseId={activeCase ? activeCase.case_id : '—'}
-        onClose={() => setIsTerminalOpen(false)}
-      />
 
       {/* Modals */}
       <LlmInspectorModal
