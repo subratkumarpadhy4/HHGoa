@@ -64,12 +64,17 @@ export default {
       animation: {
         'pulse-slow': 'pulse 3s cubic-bezier(0.4, 0, 0.6, 1) infinite',
         'dash': 'dash 20s linear infinite',
+        'blink': 'blink 1s step-end infinite',
       },
       keyframes: {
         dash: {
           '0%': { strokeDashoffset: '0' },
           '100%': { strokeDashoffset: '200' },
-        }
+        },
+        blink: {
+          '0%, 100%': { opacity: '1' },
+          '50%': { opacity: '0' },
+        },
       }
     },
   },

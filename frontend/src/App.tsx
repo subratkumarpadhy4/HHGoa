@@ -4,7 +4,7 @@ import { CaseSelectorPanel } from './components/layout/CaseSelectorPanel';
 import { CaseTabBar } from './components/layout/CaseTabBar';
 import { CaseSummaryCard } from './components/investigation/CaseSummaryCard';
 import { GraphCanvas } from './components/investigation/GraphCanvas';
-import { AgentStepper } from './components/investigation/AgentStepper';
+import { InvestigationTerminal } from './components/investigation/InvestigationTerminal';
 import { NbaProgressionCard } from './components/decision/NbaProgressionCard';
 import { PolicyAccordion } from './components/decision/PolicyAccordion';
 import { SarGenerator } from './components/decision/SarGenerator';
@@ -21,6 +21,7 @@ export const App: React.FC = () => {
   ]);
   const [activeCaseId, setActiveCaseId] = useState<string>(BENCHMARK_CASES[0].case_id);
   const [isInvestigating, setIsInvestigating] = useState<boolean>(false);
+  const [isTerminalOpen, setIsTerminalOpen] = useState<boolean>(false);
   const [activeStepIndex, setActiveStepIndex] = useState<number>(5);
   const [isLlmInspectorOpen, setIsLlmInspectorOpen] = useState<boolean>(false);
   const [isExportModalOpen, setIsExportModalOpen] = useState<boolean>(false);
@@ -60,6 +61,7 @@ export const App: React.FC = () => {
   // Run autonomous investigation simulation with realistic micro-delays
   const handleRunAutonomousInvestigation = () => {
     if (isInvestigating || !activeCase) return;
+    setIsTerminalOpen(true);   // ← open terminal immediately
     setIsInvestigating(true);
     setActiveStepIndex(0);
 
@@ -112,7 +114,7 @@ export const App: React.FC = () => {
             onRunInvestigation={handleRunAutonomousInvestigation}
           />
 
-          {/* Interactive Topology Graph Canvas with Node Inspector */}
+          {/* Interactive Topology Graph Canvas — now full height, no overlap */}
           <div className="flex-1 min-h-0 relative flex flex-col">
             <GraphCanvas
               nodes={activeCase ? activeCase.graph_nodes : []}
@@ -121,13 +123,6 @@ export const App: React.FC = () => {
               isInvestigating={isInvestigating}
             />
           </div>
-
-          {/* Stepper Feed */}
-          <AgentStepper
-            steps={activeCase ? activeCase.execution_steps : []}
-            isInvestigating={isInvestigating}
-            activeStepIndex={activeStepIndex}
-          />
         </section>
 
         {/* Column 3: Decision Engine, Policy Gates & SAR (320px) */}
@@ -164,7 +159,16 @@ export const App: React.FC = () => {
         </section>
       </main>
 
-      {/* Modals preserved if needed */}
+      {/* Investigation Terminal — fixed overlay, slides up from bottom, never affects layout */}
+      <InvestigationTerminal
+        isOpen={isTerminalOpen}
+        steps={activeCase ? activeCase.execution_steps : []}
+        isInvestigating={isInvestigating}
+        caseId={activeCase ? activeCase.case_id : '—'}
+        onClose={() => setIsTerminalOpen(false)}
+      />
+
+      {/* Modals */}
       <LlmInspectorModal
         isOpen={isLlmInspectorOpen}
         onClose={() => setIsLlmInspectorOpen(false)}
