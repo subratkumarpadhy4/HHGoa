@@ -4,7 +4,6 @@ import {
   Search, 
   Check, 
   FolderOpen,
-  Info,
   Play,
   Activity
 } from 'lucide-react';
@@ -357,16 +356,6 @@ export const CaseSelectorPanel: React.FC<CaseSelectorPanelProps> = ({
             </div>
           </div>
         )}
-      </div>
-
-      {/* Helpful Operational Guidance */}
-      <div className="flex-1 p-3.5 flex flex-col justify-end text-slate-400">
-        <div className="p-3 bg-white rounded-xl border border-slate-200/90 shadow-2xs text-[11px] leading-relaxed text-slate-500 flex items-start gap-2">
-          <Info className="w-4 h-4 text-indigo-500 shrink-0 mt-0.5" />
-          <span>
-            Select a benchmark scenario above to load investigation topology, dynamic evidence, and automated SAR recommendations.
-          </span>
-        </div>
       </div>
     </div>
   );

@@ -6,6 +6,7 @@ interface InvestigationTerminalProps {
   steps: ExecutionStep[];
   isInvestigating: boolean;
   onClose: () => void;
+  onComplete?: () => void;
 }
 
 interface OutputLine {
@@ -52,40 +53,42 @@ export const InvestigationTerminal: React.FC<InvestigationTerminalProps> = ({
   steps,
   isInvestigating,
   onClose,
+  onComplete,
 }) => {
   const [lines, setLines] = useState<OutputLine[]>([]);
   const bottomRef = useRef<HTMLDivElement>(null);
 
-  // Stream lines when investigation starts
+  // Stream steps sequentially: 1 step per second
   useEffect(() => {
     if (!isInvestigating || steps.length === 0) return;
 
-    setLines([]); // clear on each new run
+    setLines([]); // Clear previous lines when starting a fresh investigation
 
-    let delay = 0;
+    const timers: ReturnType<typeof setTimeout>[] = [];
 
+    // Schedule each step to appear exactly 1 second (1000ms) after the previous
     steps.forEach((step, idx) => {
       const stepLines = linesForStep(step, idx, steps.length);
-
-      stepLines.forEach((line, lineIdx) => {
-        setTimeout(() => {
-          setLines(prev => [...prev, line]);
-        }, delay + lineIdx * 80);
-      });
-
-      // 1-second gap between steps
-      delay += stepLines.length * 80 + 1000;
+      const timer = setTimeout(() => {
+        setLines(prev => [...prev, ...stepLines]);
+      }, idx * 1000);
+      timers.push(timer);
     });
 
-    // Done line
-    setTimeout(() => {
+    // Schedule completion line 1 second after the final step
+    const doneTimer = setTimeout(() => {
       setLines(prev => [
         ...prev,
         { key: 'done', text: '✓ Investigation complete.', color: '#A5D6A7' },
       ]);
-    }, delay);
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isInvestigating]);
+      onComplete?.();
+    }, steps.length * 1000);
+    timers.push(doneTimer);
+
+    return () => {
+      timers.forEach(t => clearTimeout(t));
+    };
+  }, [isInvestigating, steps, onComplete]);
 
   // Auto-scroll to bottom
   useEffect(() => {

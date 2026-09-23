@@ -53,23 +53,11 @@ export const App: React.FC = () => {
     }
   };
 
-  // Run autonomous investigation simulation with realistic micro-delays
+  // Trigger autonomous investigation: open terminal and start sequential stream
   const handleRunAutonomousInvestigation = () => {
     if (isInvestigating || !activeCase) return;
-    setIsTerminalOpen(true);   // ← open terminal immediately
+    setIsTerminalOpen(true);
     setIsInvestigating(true);
-
-    const stepIntervals = [500, 900, 800, 1100, 700];
-    let cumulative = 0;
-
-    stepIntervals.forEach((duration, idx) => {
-      cumulative += duration;
-      setTimeout(() => {
-        if (idx === stepIntervals.length - 1) {
-          setIsInvestigating(false);
-        }
-      }, cumulative);
-    });
   };
 
   return (
@@ -118,6 +106,7 @@ export const App: React.FC = () => {
             steps={activeCase ? activeCase.execution_steps : []}
             isInvestigating={isInvestigating}
             onClose={() => setIsTerminalOpen(false)}
+            onComplete={() => setIsInvestigating(false)}
           />
         </section>
 
