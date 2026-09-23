@@ -2,7 +2,6 @@ import React, { useState } from 'react';
 import { Header } from './components/layout/Header';
 import { CaseSelectorPanel } from './components/layout/CaseSelectorPanel';
 import { CaseTabBar } from './components/layout/CaseTabBar';
-import { CaseSummaryCard } from './components/investigation/CaseSummaryCard';
 import { GraphCanvas } from './components/investigation/GraphCanvas';
 import { InvestigationTerminal } from './components/investigation/InvestigationTerminal';
 import { NbaProgressionCard } from './components/decision/NbaProgressionCard';
@@ -87,6 +86,8 @@ export const App: React.FC = () => {
             allCases={cases}
             openCaseIds={openCaseIds}
             onOpenCase={handleOpenCase}
+            isInvestigating={isInvestigating}
+            onRunInvestigation={handleRunAutonomousInvestigation}
           />
         </section>
 
@@ -99,13 +100,6 @@ export const App: React.FC = () => {
             allCases={cases}
             onSelectTab={handleSelectTab}
             onCloseTab={handleCloseTab}
-          />
-
-          {/* Top Summary Card */}
-          <CaseSummaryCard
-            currentCase={activeCase}
-            isInvestigating={isInvestigating}
-            onRunInvestigation={handleRunAutonomousInvestigation}
           />
 
           {/* Interactive Topology Graph Canvas — full flex height */}
