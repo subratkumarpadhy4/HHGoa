@@ -30,6 +30,9 @@ class AgentState(TypedDict):
     contradiction_cycles: int             # counter
     trace: List[Dict[str, Any]]           # list of {node, timestamp, details}
 
+    graph_case_id: str                    # ID of InvestigationCase written to TigerGraph
+    written_to_graph: bool                # whether write back completed successfully
+
 
 def new_state(case_row: Dict[str, Any]) -> AgentState:
     """Build the initial AgentState from a case_pack.csv row dict."""
@@ -61,4 +64,7 @@ def new_state(case_row: Dict[str, Any]) -> AgentState:
         "evidence_rounds": 0,
         "contradiction_cycles": 0,
         "trace": [],
+
+        "graph_case_id": "",
+        "written_to_graph": False,
     }
