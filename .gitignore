@@ -1,27 +1,34 @@
-# Python
-.venv/
-__pycache__/
-*.pyc
-*.pyo
-.pytest_cache/
-
-# Environment
+# Secrets — never commit
 .env
-.env.local
 
-# Data (root CSV data directory - too large for git)
-/data/
-/tg-data/
+# Python virtual environments
+.venv39/
+.venv/
+venv/
+env/
 
-# Node / Frontend
-frontend/node_modules/
-frontend/dist/
-frontend/build/
-frontend/.vite/
+# TigerGraph local data
+tg-data/
 
-# Logs
-*.log
-
-# OS
+# macOS junk
 .DS_Store
-Thumbs.db
+**/.DS_Store
+
+# Python cache
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+.Python
+
+# Byte-compiled / optimized / DLL files
+*.egg-info/
+dist/
+build/
+*.egg
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
