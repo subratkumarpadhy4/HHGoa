@@ -422,7 +422,7 @@ Each provider is tried in order. On success, the response includes a `_provider`
 - **Benchmark summary**: `results/answers/_answers_summary.json`
 - **Demo video**: [URL]
 - **Blog post**: https://dev.to/subratkumarpadhy/building-an-agentic-fraud-investigation-system-with-tigergraph-langgraph-mcp-obd
-- **Social posts**: [URL 1], [URL 2], [URL 3]
+- **Social posts**: https://www.linkedin.com/posts/jenapriyanshu003_building-an-agentic-fraud-investigation-system-activity-7508904691498471424-4ajY?utm_source=share&utm_medium=member_android&rcm=ACoAAF3hOyMB5Qhy3sfvszwiTOx8KD3x2eOMMsM, [URL 2], [URL 3]
 - **TigerGraph deployment**: Community Edition
 
 ---
