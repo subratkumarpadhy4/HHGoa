@@ -128,31 +128,105 @@ export interface SuspiciousActivityReport12 {
 }
 
 /**
+ * Hard validation rule for SAR report generator:
+ * A report may only render a final/closed status ("FILED" badge, "Confirmed Fraud" or resolved disposition in Section 11)
+ * if and only if EVERY action row in Section 9 has:
+ *  - A state of "Approved" or "Denied" (never "Pending Approval" or "recommended")
+ *  - A non-empty Decision Maker (never "Awaiting Review" or blank)
+ *  - A non-empty Timestamp (never "–" or "-")
+ */
+export function areAllReportActionsResolved(actions: CaseAction[]): boolean {
+  if (!actions || actions.length === 0) {
+    return false;
+  }
+
+  return actions.every(act => {
+    // 1. Must be Approved/Executed or Denied
+    const isApprovedOrExecuted = act.state === 'approved' || act.state === 'executed';
+    const isDenied = act.state === 'denied';
+    if (!isApprovedOrExecuted && !isDenied) {
+      return false;
+    }
+
+    // 2. Non-empty Decision Maker (never "Awaiting Review" or blank)
+    const decisionMaker = act.decisionBy 
+      ? act.decisionBy.trim() 
+      : act.approval_tier === 'auto' 
+        ? 'Automated Rule Engine' 
+        : '';
+    if (!decisionMaker || decisionMaker.toLowerCase() === 'awaiting review') {
+      return false;
+    }
+
+    // 3. Non-empty Timestamp (never "—", "-", or blank)
+    const ts = act.decisionAt || act.executedAt || '';
+    const cleanTs = ts.trim();
+    if (!cleanTs || cleanTs === '—' || cleanTs === '-') {
+      return false;
+    }
+
+    return true;
+  });
+}
+
+/**
  * Builds the official Suspicious Activity Report model conforming to HHGOA dataset identifiers.
  */
-export function build12SectionSar(caseItem: BenchmarkCase, isResolved: boolean): SuspiciousActivityReport12 {
+export function build12SectionSar(caseItem: BenchmarkCase, isResolved: boolean = true): SuspiciousActivityReport12 {
   const isFraud = caseItem.initial_risk_score >= 0.75 || caseItem.graph_nodes.some(n => n.isFraudRing);
   const now = new Date().toISOString();
+
+  // Part 10 Actions evaluated first to determine genuine case closure
+  const actions: CaseAction[] = caseItem.actions && caseItem.actions.length > 0 
+    ? caseItem.actions 
+    : getInitialCaseActions(caseItem);
+
+  // Hard validation check: report generator may ONLY render a final/closed status
+  // if and only if EVERY action row in Section 9 is resolved (Approved or Denied)
+  const allActionsResolved = areAllReportActionsResolved(actions);
+  const isGenuinelyClosed = allActionsResolved && (caseItem.status.startsWith('resolved') || isResolved);
 
   // Part 1: Header & Institutional Metadata
   const report_header: SarReportHeader = {
     sar_id: `BSA-SAR-2016-${caseItem.case_id.replace(/[^0-9]/g, '').padStart(3, '0') || '001'}`,
     case_id: caseItem.case_id,
     generated_at: now,
-    status: isResolved ? (isFraud ? 'Filed' : 'Cleared') : 'Pending',
+    status: isGenuinelyClosed ? (isFraud ? 'Filed' : 'Cleared') : 'Pending',
     filed_by: 'Compliance Operations'
   };
+
+  // Part 8: Prior Case References (Single source of truth for both Section 0 and Section 7)
+  const prior_case_context: SarPriorCaseContext[] = (caseItem.evidence_pack?.prior_cases?.related || []).map(r => ({
+    case_id: r.case_id,
+    relation: 'related',
+    shared_dimension: r.shared_entity,
+    outcome: r.outcome
+  }));
+
+  // Build Section 0's historical indicators directly from Section 7's single source of truth
+  const referencedCasesList = prior_case_context.map(c => c.case_id);
+  const referencedCasesStr = referencedCasesList.length > 0 
+    ? referencedCasesList.join(', ') 
+    : 'None';
+  const priorFraudCasesCount = prior_case_context.length;
+
+  // Validation check: count of cases listed in Section 0 must always exactly equal rows in Section 7's table
+  if (referencedCasesList.length !== prior_case_context.length) {
+    console.error(
+      `[SAR Data Integrity Warning] Section 0 case count (${referencedCasesList.length}) does not match Section 7 row count (${prior_case_context.length}) for case ${caseItem.case_id}.`
+    );
+  }
 
   // Part 2: Subject & Card Details
   const deviceNodes = caseItem.graph_nodes.filter(n => n.type === 'Device').map(n => n.id);
   const deviceId = deviceNodes[0] || caseItem.evidence_pack.transaction_context.device_info || 'c72bd41105eb39dd85c6622e779423fe';
 
   const structured_historical_flags = {
-    prior_fraud_cases: caseItem.historical_counts?.prior_fraud_cases ?? (isFraud ? 4 : 0),
+    prior_fraud_cases: priorFraudCasesCount,
     customers_on_device: caseItem.historical_counts?.customers_on_device ?? (isFraud ? 7 : 1),
     transactions_on_device: caseItem.historical_counts?.transactions_on_device ?? (isFraud ? 14 : 1),
     devices_on_customer: caseItem.historical_counts?.devices_on_customer ?? 1,
-    prior_cases_referenced: caseItem.historical_counts?.prior_cases_referenced ?? (isFraud ? 'CC-1066, CC-2967, CC-3587, CC-1673' : 'None')
+    prior_cases_referenced: referencedCasesStr
   };
 
   const subject_identity: SarSubjectIdentity = {
@@ -199,7 +273,7 @@ export function build12SectionSar(caseItem: BenchmarkCase, isResolved: boolean):
     customers: caseItem.graph_nodes.filter(n => n.type === 'Account').length || 1,
     email_domains: caseItem.graph_nodes.filter(n => n.type === 'EmailDomain').length || (caseItem.evidence_pack.transaction_context.p_emaildomain ? 1 : 0),
     billing_regions: 1,
-    prior_cases: caseItem.graph_nodes.filter(n => n.type === 'PriorCase').length || (caseItem.evidence_pack.prior_cases?.related?.length || 0)
+    prior_cases: prior_case_context.length
   };
 
   const investigation_graph: SarInvestigationGraph = {
@@ -293,13 +367,7 @@ export function build12SectionSar(caseItem: BenchmarkCase, isResolved: boolean):
     }
   ] : [];
 
-  // Part 8: Prior Case References
-  const prior_case_context: SarPriorCaseContext[] = (caseItem.evidence_pack.prior_cases?.related || []).map(r => ({
-    case_id: r.case_id,
-    relation: 'related',
-    shared_dimension: r.shared_entity,
-    outcome: r.outcome
-  }));
+  // Part 8: Prior Case References already defined above as single source of truth
 
   // Part 9: Policy & Statutory Basis
   const policy_basis: SarPolicyBasis[] = (caseItem.evidence_pack.policy_rules || []).map(r => ({
@@ -310,11 +378,7 @@ export function build12SectionSar(caseItem: BenchmarkCase, isResolved: boolean):
   }));
 
   // Part 10: Recommended Mitigation Action & Human Approval Trail
-  const actions: CaseAction[] = caseItem.actions && caseItem.actions.length > 0 
-    ? caseItem.actions 
-    : getInitialCaseActions(caseItem);
-
-  const actionObj = isResolved ? caseItem.post_evidence_nba : caseItem.pre_evidence_nba;
+  const actionObj = isGenuinelyClosed ? caseItem.post_evidence_nba : caseItem.pre_evidence_nba;
   
   let approvalOutcome: 'executed' | 'approved' | 'denied' | 'escalated' = 'executed';
   const primaryGatedAction = actions.find(a => a.approval_tier === 'L1' || a.approval_tier === 'L2');
@@ -329,7 +393,7 @@ export function build12SectionSar(caseItem: BenchmarkCase, isResolved: boolean):
   } else if (actionObj.approval_tier === 'auto') {
     approvalOutcome = 'executed';
   } else if (actionObj.approval_tier === 'L1' || actionObj.approval_tier === 'L2') {
-    approvalOutcome = isResolved ? 'approved' : 'escalated';
+    approvalOutcome = isGenuinelyClosed ? 'approved' : 'escalated';
   }
 
   const recommended_action: SarRecommendedAction = {
@@ -362,8 +426,8 @@ export function build12SectionSar(caseItem: BenchmarkCase, isResolved: boolean):
 
   // Final Disposition
   const final_disposition: SarFinalDisposition = {
-    outcome: isResolved ? (isFraud ? 'confirmed_fraud' : 'false_positive') : 'unresolved',
-    status: isResolved ? (isFraud ? 'Filed' : 'Cleared') : 'Pending',
+    outcome: isGenuinelyClosed ? (isFraud ? 'confirmed_fraud' : 'false_positive') : 'unresolved',
+    status: isGenuinelyClosed ? (isFraud ? 'Filed' : 'Cleared') : 'Pending',
     downloadable: true
   };
 
@@ -394,9 +458,26 @@ export function build12SectionSar(caseItem: BenchmarkCase, isResolved: boolean):
 /**
  * Generates and triggers browser print / PDF download for the Suspicious Activity Report.
  */
-export function downloadSarPdf(caseItem: BenchmarkCase, isResolved: boolean): void {
+export function downloadSarPdf(caseItem: BenchmarkCase, isResolved: boolean = true): void {
   const sar = build12SectionSar(caseItem, isResolved);
-  const isFraud = sar.final_disposition.outcome === 'confirmed_fraud';
+  const actions: CaseAction[] = caseItem.actions && caseItem.actions.length > 0 
+    ? caseItem.actions 
+    : getInitialCaseActions(caseItem);
+  const allActionsResolved = areAllReportActionsResolved(actions);
+  const isGenuinelyClosed = allActionsResolved && (caseItem.status.startsWith('resolved') || isResolved);
+  const isFraud = caseItem.initial_risk_score >= 0.75 || caseItem.graph_nodes.some(n => n.isFraudRing);
+
+  // Reviewing officer and timestamp extracted from real approval event
+  const decidingAction = [...actions].reverse().find(a => (a.approval_tier === 'L2' || a.approval_tier === 'L1') && a.decisionBy)
+    || actions.find(a => a.decisionBy);
+
+  const reviewingOfficerName = decidingAction && decidingAction.decisionBy
+    ? `${decidingAction.decisionBy} (${decidingAction.decisionTier || decidingAction.approval_tier})`
+    : 'Compliance Officer (L2)';
+
+  const reviewingOfficerDate = decidingAction && decidingAction.decisionAt
+    ? (decidingAction.decisionAt.includes('-') ? decidingAction.decisionAt.slice(0, 10) : sar.report_header.generated_at.slice(0, 10))
+    : sar.report_header.generated_at.slice(0, 10);
 
   const html = `<!DOCTYPE html>
 <html lang="en">
@@ -584,8 +665,8 @@ export function downloadSarPdf(caseItem: BenchmarkCase, isResolved: boolean): vo
       <div class="sub">Orbit Financial Services · Case ${sar.report_header.case_id}</div>
     </div>
     <div class="header-right">
-      <span class="status-badge ${isResolved ? (isFraud ? 'status-filed' : 'status-cleared') : 'status-pending'}">
-        ${sar.report_header.status}
+      <span class="status-badge ${isGenuinelyClosed ? (isFraud ? 'status-filed' : 'status-cleared') : 'status-pending'}">
+        ${isGenuinelyClosed ? (isFraud ? 'FILED' : 'CLEARED') : 'PENDING'}
       </span>
       <div style="margin-top: 3px; color: #64748b;">
         Date: ${sar.report_header.generated_at.slice(0, 10)}
@@ -920,8 +1001,8 @@ export function downloadSarPdf(caseItem: BenchmarkCase, isResolved: boolean): vo
       <tr>
         <td style="width: 50%;">
           <span class="lbl">Final Disposition</span>
-          <span class="val" style="color: ${isFraud ? '#b91c1c' : '#15803d'};">
-            ${isFraud ? 'Confirmed Fraud' : 'Cleared (False Positive)'}
+          <span class="val" style="color: ${isGenuinelyClosed ? (isFraud ? '#b91c1c' : '#15803d') : '#b45309'};">
+            ${isGenuinelyClosed ? (isFraud ? 'Confirmed Fraud' : 'Cleared (False Positive)') : 'Under investigation'}
           </span>
         </td>
         <td style="width: 50%;">
@@ -940,9 +1021,9 @@ export function downloadSarPdf(caseItem: BenchmarkCase, isResolved: boolean): vo
       <div style="color: #64748b;">Date: ${sar.report_header.generated_at.slice(0, 10)}</div>
     </div>
     <div>
-      <div><strong>Reviewing Officer:</strong> Compliance Officer (L2)</div>
+      <div><strong>Reviewing Officer:</strong> ${isGenuinelyClosed ? reviewingOfficerName : '—'}</div>
       <div class="sig-line"></div>
-      <div style="color: #64748b;">Date: ${sar.report_header.generated_at.slice(0, 10)}</div>
+      <div style="color: #64748b;">Date: ${isGenuinelyClosed ? reviewingOfficerDate : '—'}</div>
     </div>
   </div>
 

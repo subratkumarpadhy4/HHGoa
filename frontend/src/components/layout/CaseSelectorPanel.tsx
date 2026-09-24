@@ -5,10 +5,11 @@ import {
   Check, 
   FolderOpen,
   Play,
-  Activity
+  Activity,
+  AlertCircle
 } from 'lucide-react';
 import type { BenchmarkCase } from '../../types/investigation';
-import { getCaseLifecycleStatus, getStatusDot } from '../../types/investigation';
+import { getCaseLifecycleStatus, getStatusDot, getPendingGatedActionsCount } from '../../types/investigation';
 
 interface CaseSelectorPanelProps {
   activeCase: BenchmarkCase | null;
@@ -47,6 +48,8 @@ export const CaseSelectorPanel: React.FC<CaseSelectorPanelProps> = ({
 
   const activeStatus = activeCase ? getCaseLifecycleStatus(activeCase) : null;
   const activeDot = activeStatus ? getStatusDot(activeStatus) : null;
+  const pendingGatedCount = activeCase ? getPendingGatedActionsCount(activeCase.actions) : 0;
+  const isPreInvestigation = activeCase?.status === 'under_investigation' && !activeCase?.activity_feed?.some(l => l.includes('investigation complete'));
 
   // Cases filtered for dropdown search
   const dropdownCases = allCases.filter((c) => {
@@ -290,17 +293,27 @@ export const CaseSelectorPanel: React.FC<CaseSelectorPanelProps> = ({
                 <span className="text-slate-500 font-normal">Case ID:</span>
                 <span className="font-mono font-bold text-slate-900">{activeCase.case_id}</span>
               </div>
-              <div className="flex items-center justify-between text-[13px]">
-                <span className="text-slate-500 font-normal">Status:</span>
-                <span className={`px-2 py-0.5 rounded text-[11px] font-semibold ${
-                  activeStatus === 'Resolved'
-                    ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
-                    : activeStatus === 'Closed'
-                    ? 'bg-rose-50 text-rose-700 border-rose-200'
-                    : 'bg-amber-50 text-amber-700 border-amber-200'
-                }`}>
-                  {activeDot?.label}
-                </span>
+              <div>
+                <div className="flex items-center justify-between text-[13px]">
+                  <span className="text-slate-500 font-normal">Status:</span>
+                  <span className={`px-2 py-0.5 rounded text-[11px] font-semibold ${
+                    activeStatus === 'Resolved'
+                      ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
+                      : activeStatus === 'Closed'
+                      ? 'bg-rose-50 text-rose-700 border border-rose-200'
+                      : 'bg-amber-50 text-amber-700 border border-amber-200'
+                  }`}>
+                    {activeDot?.label}
+                  </span>
+                </div>
+                {pendingGatedCount > 0 && !isPreInvestigation && (
+                  <div className="mt-1.5 flex items-center gap-1.5 px-2 py-1 rounded bg-amber-50 border border-amber-200 text-amber-800 text-[10.5px] leading-tight">
+                    <AlertCircle className="w-3.5 h-3.5 text-amber-600 shrink-0" />
+                    <span>
+                      Case cannot close: {pendingGatedCount} {pendingGatedCount === 1 ? 'action' : 'actions'} awaiting sign-off
+                    </span>
+                  </div>
+                )}
               </div>
               <div className="flex items-center justify-between text-[13px]">
                 <span className="text-slate-500 font-normal">Typology:</span>

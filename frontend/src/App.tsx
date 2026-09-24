@@ -28,6 +28,41 @@ export const App: React.FC = () => {
   const [activeCaseId, setActiveCaseId] = useState<string>(BENCHMARK_CASES[0].case_id);
   const [isInvestigating, setIsInvestigating] = useState<boolean>(false);
   const [isTerminalOpen, setIsTerminalOpen] = useState<boolean>(false);
+  const [terminalHeight, setTerminalHeight] = useState<number>(230);
+  const [rightSidebarWidth, setRightSidebarWidth] = useState<number>(320);
+  const [isSidebarDragging, setIsSidebarDragging] = useState<boolean>(false);
+
+  // Resize drag handler for Incident Review panel (right sidebar width)
+  const handleSidebarDragStart = (e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    const startX = e.clientX;
+    const startWidth = rightSidebarWidth;
+
+    const handleMouseMove = (moveEvent: MouseEvent) => {
+      moveEvent.preventDefault();
+      // Dragging LEFT (smaller clientX) increases right sidebar width
+      const deltaX = startX - moveEvent.clientX;
+      const minW = 280;
+      const maxW = Math.max(minW, Math.min(window.innerWidth - 720, 560));
+      const nextWidth = Math.min(maxW, Math.max(minW, startWidth + deltaX));
+      setRightSidebarWidth(nextWidth);
+    };
+
+    const handleMouseUp = () => {
+      setIsSidebarDragging(false);
+      document.removeEventListener('mousemove', handleMouseMove);
+      document.removeEventListener('mouseup', handleMouseUp);
+      document.body.style.cursor = '';
+      document.body.style.userSelect = '';
+    };
+
+    setIsSidebarDragging(true);
+    document.body.style.cursor = 'ew-resize';
+    document.body.style.userSelect = 'none';
+    document.addEventListener('mousemove', handleMouseMove);
+    document.addEventListener('mouseup', handleMouseUp);
+  };
 
   // Active case accessor: null if no case is active
   const activeCase = cases.find(c => c.case_id === activeCaseId) || null;
@@ -127,11 +162,30 @@ export const App: React.FC = () => {
       const logLine = `[${time}] [+] ${action.title} approved by ${DEMO_ANALYST_NAME} (${action.approval_tier})`;
       const execLine = `[${time}] [✓] ${action.title} executed successfully via Gateway`;
 
-      const evalResult = evaluateCaseStatus(c, updatedActions);
+      const allRequiredDecided = updatedActions
+        .filter(a => a.approval_tier === 'L1' || a.approval_tier === 'L2')
+        .every(a => a.state === 'executed' || a.state === 'denied');
+
+      const finalActions = allRequiredDecided
+        ? updatedActions.map(a => {
+            if (a.approval_tier === 'auto' && a.state !== 'executed') {
+              return {
+                ...a,
+                state: 'executed' as const,
+                decisionBy: 'Automated Rule Engine',
+                decisionAt: time,
+                executedAt: time,
+              };
+            }
+            return a;
+          })
+        : updatedActions;
+
+      const evalResult = evaluateCaseStatus(c, finalActions);
 
       return {
         ...c,
-        actions: updatedActions,
+        actions: finalActions,
         status: evalResult.status,
         sar_status: evalResult.status === 'resolved_fraud' ? 'Pending' : c.sar_status,
         denial_warning: evalResult.denial_warning,
@@ -166,11 +220,30 @@ export const App: React.FC = () => {
       const logLine = `[${time}] [-] ${action.title} denied by ${DEMO_ANALYST_NAME} (${action.approval_tier})`;
       const warnLine = `[${time}] [!] Containment incomplete — ${action.title} denied`;
 
-      const evalResult = evaluateCaseStatus(c, updatedActions);
+      const allRequiredDecided = updatedActions
+        .filter(a => a.approval_tier === 'L1' || a.approval_tier === 'L2')
+        .every(a => a.state === 'executed' || a.state === 'denied');
+
+      const finalActions = allRequiredDecided
+        ? updatedActions.map(a => {
+            if (a.approval_tier === 'auto' && a.state !== 'executed') {
+              return {
+                ...a,
+                state: 'executed' as const,
+                decisionBy: 'Automated Rule Engine',
+                decisionAt: time,
+                executedAt: time,
+              };
+            }
+            return a;
+          })
+        : updatedActions;
+
+      const evalResult = evaluateCaseStatus(c, finalActions);
 
       return {
         ...c,
-        actions: updatedActions,
+        actions: finalActions,
         status: evalResult.status,
         denial_warning: evalResult.denial_warning,
         activity_feed: [...(c.activity_feed || []), logLine, warnLine],
@@ -196,6 +269,8 @@ export const App: React.FC = () => {
             ...a,
             state: newState,
             executedAt: newState === 'executed' ? time : undefined,
+            decisionBy: newState === 'executed' ? 'Automated Rule Engine' : undefined,
+            decisionAt: newState === 'executed' ? time : undefined,
           };
         }
         return a;
@@ -263,6 +338,8 @@ export const App: React.FC = () => {
           {/* Terminal — inline below graph, only visible when open */}
           <InvestigationTerminal
             isOpen={isTerminalOpen}
+            height={terminalHeight}
+            onHeightChange={setTerminalHeight}
             steps={activeCase ? activeCase.execution_steps : []}
             isInvestigating={isInvestigating}
             caseId={activeCase ? activeCase.case_id : ''}
@@ -280,8 +357,33 @@ export const App: React.FC = () => {
           />
         </section>
 
-        {/* Column 3: Decision Engine, Policy Gates & Incident Review (320px) */}
-        <section className="w-[320px] shrink-0 h-full flex flex-col bg-slate-50/70 overflow-hidden" aria-label="Decision Engine and Policy Gates">
+        {/* Column 3: Decision Engine, Policy Gates & Incident Review (Resizable width) */}
+        <section 
+          className="relative shrink-0 h-full flex flex-col bg-slate-50/70 overflow-hidden" 
+          style={{ width: `${rightSidebarWidth}px` }}
+          aria-label="Decision Engine and Policy Gates"
+        >
+          {/* Left Drag Handle for Horizontal Width Resize (4-6px grab area, ew-resize cursor) */}
+          <div
+            onMouseDown={handleSidebarDragStart}
+            className={`group absolute -left-[3px] top-0 bottom-0 w-[6px] cursor-ew-resize z-40 flex items-center justify-center select-none ${
+              isSidebarDragging ? 'bg-indigo-500/30' : ''
+            }`}
+            title="Drag to resize panel width"
+          >
+            {/* Subtle visual indicator on hover: thin highlighted line */}
+            <div 
+              className={`h-full w-[2px] transition-colors duration-150 ${
+                isSidebarDragging ? 'bg-indigo-500' : 'bg-transparent group-hover:bg-indigo-500/80'
+              }`} 
+            />
+            {/* Small center grip indicator */}
+            <div 
+              className={`absolute h-10 w-[3px] rounded-full transition-colors duration-150 ${
+                isSidebarDragging ? 'bg-indigo-400' : 'bg-transparent group-hover:bg-indigo-400'
+              }`} 
+            />
+          </div>
           <div className="flex-1 overflow-y-auto p-3.5">
             {/* Next-Best Action Progression / Incident Review with Human Approval Gate */}
             <NbaProgressionCard

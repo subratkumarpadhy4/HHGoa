@@ -199,16 +199,8 @@ export function evaluateCaseStatus(
 ): { status: CaseStatus; denial_warning?: string } {
   const isFraud = isCaseFraud(caseItem);
 
-  // If any required action was denied, case CANNOT be marked resolved!
-  const deniedAction = actions.find(a => a.state === 'denied');
-  if (deniedAction) {
-    return {
-      status: 'requires_approval',
-      denial_warning: `Containment action "${deniedAction.title}" was denied by ${deniedAction.decisionBy || 'analyst'}. Required containment incomplete — case cannot be marked as resolved.`,
-    };
-  }
-
-  // If any required L1/L2 action is still pending approval or recommended, case cannot advance to resolved!
+  // If any required L1/L2 action is still pending sign-off (pending_approval or recommended),
+  // case CANNOT advance to resolved or closed!
   const hasPendingL1L2 = actions.some(
     a => (a.approval_tier === 'L1' || a.approval_tier === 'L2') &&
          (a.state === 'pending_approval' || a.state === 'recommended')
@@ -220,15 +212,19 @@ export function evaluateCaseStatus(
     };
   }
 
-  // Check if all required L1/L2 actions have reached approved and executed
-  const allRequiredApprovedAndExecuted = actions
+  // Once all Gate L1 and Gate L2 items for a case reach a final Approved (executed) or Denied state,
+  // allow the case status to update to its resolved state!
+  const allRequiredDecided = actions
     .filter(a => a.approval_tier === 'L1' || a.approval_tier === 'L2')
-    .every(a => a.state === 'executed' && Boolean(a.decisionBy));
+    .every(a => a.state === 'executed' || a.state === 'denied');
 
-  if (allRequiredApprovedAndExecuted) {
+  if (allRequiredDecided) {
+    const deniedAction = actions.find(a => a.state === 'denied');
     return {
       status: isFraud ? 'resolved_fraud' : 'resolved_cleared',
-      denial_warning: undefined,
+      denial_warning: deniedAction
+        ? `Containment action "${deniedAction.title}" was denied by ${deniedAction.decisionBy || 'analyst'}. Case closed with containment decision recorded.`
+        : undefined,
     };
   }
 

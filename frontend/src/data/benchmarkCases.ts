@@ -125,7 +125,9 @@ export const BENCHMARK_CASES: BenchmarkCase[] = [
         note: 'Contextual support only',
         related: [
           { case_id: 'CC-1066', shared_entity: 'c72bd41105eb39dd85c6622e779423fe', outcome: 'Confirmed Fraud ($4.2k Loss)' },
-          { case_id: 'CC-2967', shared_entity: 'c72bd41105eb39dd85c6622e779423fe', outcome: 'Chargeback Loss ($1.8k)' }
+          { case_id: 'CC-2967', shared_entity: 'c72bd41105eb39dd85c6622e779423fe', outcome: 'Chargeback Loss ($1.8k)' },
+          { case_id: 'CC-3587', shared_entity: 'c72bd41105eb39dd85c6622e779423fe', outcome: 'Coordinated Ring Fraud ($3.1k Loss)' },
+          { case_id: 'CC-1673', shared_entity: 'c72bd41105eb39dd85c6622e779423fe', outcome: 'Device Ring Takeover ($2.6k Loss)' }
         ],
         similar: []
       },
@@ -485,7 +487,8 @@ export const BENCHMARK_CASES: BenchmarkCase[] = [
       prior_cases: {
         note: 'Contextual support only',
         related: [
-          { case_id: 'CC-0141', shared_entity: 'c72bd41105eb39dd85c6622e779423fe', outcome: 'Confirmed BIN Attack ($1.2k Loss)' }
+          { case_id: 'CC-0141', shared_entity: 'c72bd41105eb39dd85c6622e779423fe', outcome: 'Confirmed BIN Attack ($1.2k Loss)' },
+          { case_id: 'CC-0877', shared_entity: 'c72bd41105eb39dd85c6622e779423fe', outcome: 'Card Testing Takeover ($850 Loss)' }
         ],
         similar: []
       },
@@ -679,7 +682,8 @@ function generateRemainingBenchmarkCases(): BenchmarkCase[] {
         prior_cases: {
           note: 'Contextual support only',
           related: isFraud ? [
-            { case_id: `CC-00${caseNum + 10}`, shared_entity: deviceHash, outcome: 'Confirmed Fraud ($1.5k Loss)' }
+            { case_id: `CC-00${caseNum + 10}`, shared_entity: deviceHash, outcome: 'Confirmed Fraud ($1.5k Loss)' },
+            { case_id: `CC-00${caseNum + 20}`, shared_entity: deviceHash, outcome: 'Confirmed Fraud ($2.2k Loss)' }
           ] : [],
           similar: []
         },

@@ -37,7 +37,9 @@ export const SarGenerator: React.FC<SarGeneratorProps> = ({
     );
   }
 
-  const isResolved = sarStatus === 'Cleared' || caseItem.status.startsWith('resolved') || caseItem.status === 'requires_approval';
+  const actions = caseItem.actions || [];
+  const isActionsResolved = actions.length > 0 && actions.filter(a => a.approval_tier === 'L1' || a.approval_tier === 'L2').every(a => a.state === 'executed' || a.state === 'denied');
+  const isResolved = sarStatus === 'Cleared' || caseItem.status.startsWith('resolved') || isActionsResolved;
   const isFraud = caseItem.initial_risk_score >= 0.75 || caseItem.graph_nodes.some(n => n.isFraudRing);
 
   return (

@@ -202,16 +202,13 @@ export interface BenchmarkCase {
 export type CaseLifecycleStatus = 'Resolved' | 'Closed' | 'Pending';
 
 export function getCaseLifecycleStatus(c: { status: CaseStatus | string; actions?: CaseAction[] }): CaseLifecycleStatus {
-  // If case has L1/L2 actions that are pending approval or denied, it cannot advance to Resolved or Closed
+  // If case has L1/L2 actions that are awaiting sign-off (pending_approval or recommended), it CANNOT advance to Resolved or Closed
   if (c.actions && c.actions.length > 0) {
     const hasPendingL1L2 = c.actions.some(
       a => (a.approval_tier === 'L1' || a.approval_tier === 'L2') && 
            (a.state === 'pending_approval' || a.state === 'recommended')
     );
-    const hasDenied = c.actions.some(
-      a => (a.approval_tier === 'L1' || a.approval_tier === 'L2') && a.state === 'denied'
-    );
-    if (hasPendingL1L2 || hasDenied) {
+    if (hasPendingL1L2) {
       return 'Pending';
     }
   }
@@ -223,6 +220,14 @@ export function getCaseLifecycleStatus(c: { status: CaseStatus | string; actions
     return 'Closed';
   }
   return 'Pending';
+}
+
+export function getPendingGatedActionsCount(actions?: CaseAction[]): number {
+  if (!actions || actions.length === 0) return 0;
+  return actions.filter(
+    a => (a.approval_tier === 'L1' || a.approval_tier === 'L2') &&
+         (a.state === 'pending_approval' || a.state === 'recommended')
+  ).length;
 }
 
 export function getStatusDot(status: CaseLifecycleStatus): {

@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Terminal as TerminalIcon, X, Trash2 } from 'lucide-react';
+import { Terminal as TerminalIcon, X, Trash2, Maximize2, Minimize2 } from 'lucide-react';
 import type { BenchmarkCase, ExecutionStep } from '../../types/investigation';
 import { 
   executeTerminalCommand, 
@@ -15,6 +15,8 @@ interface InvestigationTerminalProps {
   caseId?: string;
   activeCase?: BenchmarkCase | null;
   allCases?: BenchmarkCase[];
+  height?: number;
+  onHeightChange?: (height: number) => void;
   onClose: () => void;
   onComplete?: (caseId?: string) => void;
   onRunInvestigation?: (caseId?: string) => void;
@@ -59,6 +61,8 @@ export const InvestigationTerminal: React.FC<InvestigationTerminalProps> = ({
   caseId,
   activeCase = null,
   allCases = [],
+  height = 230,
+  onHeightChange,
   onClose,
   onComplete,
   onRunInvestigation,
@@ -69,6 +73,19 @@ export const InvestigationTerminal: React.FC<InvestigationTerminalProps> = ({
   const [input, setInput] = useState('');
   const [history, setHistory] = useState<string[]>([]);
   const [historyIndex, setHistoryIndex] = useState<number>(-1);
+  const [isDragging, setIsDragging] = useState(false);
+  const [isFullscreen, setIsFullscreen] = useState(false);
+
+  // Keyboard shortcut: Escape to exit fullscreen mode
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape' && isFullscreen) {
+        setIsFullscreen(false);
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [isFullscreen]);
 
   const bottomRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -313,14 +330,74 @@ export const InvestigationTerminal: React.FC<InvestigationTerminalProps> = ({
     inputRef.current?.focus();
   };
 
+  const handleDragStart = (e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    const startY = e.clientY;
+    const startHeight = height;
+
+    const handleMouseMove = (moveEvent: MouseEvent) => {
+      moveEvent.preventDefault();
+      const deltaY = startY - moveEvent.clientY; // UP is positive, increases height
+      const minH = 140;
+      const maxH = Math.max(minH, Math.min(window.innerHeight - 220, 600));
+      const nextHeight = Math.min(maxH, Math.max(minH, startHeight + deltaY));
+      if (onHeightChange) {
+        onHeightChange(nextHeight);
+      }
+    };
+
+    const handleMouseUp = () => {
+      setIsDragging(false);
+      document.removeEventListener('mousemove', handleMouseMove);
+      document.removeEventListener('mouseup', handleMouseUp);
+      document.body.style.cursor = '';
+      document.body.style.userSelect = '';
+    };
+
+    setIsDragging(true);
+    document.body.style.cursor = 'ns-resize';
+    document.body.style.userSelect = 'none';
+    document.addEventListener('mousemove', handleMouseMove);
+    document.addEventListener('mouseup', handleMouseUp);
+  };
+
   if (!isOpen) return null;
 
   return (
     <div 
-      className="shrink-0 border-t border-[#1e1e1e] flex flex-col transition-all select-text" 
-      style={{ height: '230px', background: '#0a0a0a' }}
+      className={`${
+        isFullscreen
+          ? 'fixed inset-0 z-50 flex flex-col select-text shadow-2xl'
+          : 'relative shrink-0 border-t border-[#1e1e1e] flex flex-col select-text'
+      }`} 
+      style={{ 
+        ...(isFullscreen ? {} : { height: `${height}px` }), 
+        background: '#0a0a0a' 
+      }}
       onClick={() => inputRef.current?.focus()}
     >
+      {/* Top Drag Handle for Vertical Height Resize (4-6px grab area, ns-resize cursor) - hidden while in fullscreen */}
+      {!isFullscreen && (
+        <div
+          onMouseDown={handleDragStart}
+          className={`group absolute -top-[3px] left-0 right-0 h-[6px] cursor-ns-resize z-40 flex items-center justify-center select-none ${
+            isDragging ? 'bg-indigo-500/30' : ''
+          }`}
+          title="Drag to resize terminal height"
+        >
+          <div 
+            className={`w-full h-[2px] transition-colors duration-150 ${
+              isDragging ? 'bg-indigo-500' : 'bg-transparent group-hover:bg-indigo-500/80'
+            }`} 
+          />
+          <div 
+            className={`absolute w-10 h-[3px] rounded-full transition-colors duration-150 ${
+              isDragging ? 'bg-indigo-400' : 'bg-transparent group-hover:bg-indigo-400'
+            }`} 
+          />
+        </div>
+      )}
       {/* Terminal Title Bar */}
       <div
         className="flex items-center justify-between px-3 py-1.5 shrink-0 select-none"
@@ -340,6 +417,22 @@ export const InvestigationTerminal: React.FC<InvestigationTerminalProps> = ({
         </div>
 
         <div className="flex items-center gap-2">
+          {/* Fullscreen Toggle Button */}
+          <button
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation();
+              setIsFullscreen(prev => !prev);
+            }}
+            className="text-slate-400 hover:text-slate-200 p-0.5 rounded transition-colors cursor-pointer"
+            title={isFullscreen ? "Exit Fullscreen (Esc)" : "Expand Terminal to Fullscreen"}
+          >
+            {isFullscreen ? (
+              <Minimize2 className="w-3 h-3" />
+            ) : (
+              <Maximize2 className="w-3 h-3" />
+            )}
+          </button>
           <button
             type="button"
             onClick={(e) => {
@@ -355,6 +448,7 @@ export const InvestigationTerminal: React.FC<InvestigationTerminalProps> = ({
             type="button"
             onClick={(e) => {
               e.stopPropagation();
+              setIsFullscreen(false);
               onClose();
             }}
             style={{ 
