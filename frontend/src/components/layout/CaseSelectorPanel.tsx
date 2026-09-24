@@ -9,6 +9,7 @@ import {
 } from 'lucide-react';
 import type { BenchmarkCase } from '../../types/investigation';
 import { getCaseLifecycleStatus, getStatusDot } from '../../types/investigation';
+import { SarGenerator } from '../decision/SarGenerator';
 
 interface CaseSelectorPanelProps {
   activeCase: BenchmarkCase | null;
@@ -17,6 +18,7 @@ interface CaseSelectorPanelProps {
   onOpenCase: (caseId: string) => void;
   isInvestigating: boolean;
   onRunInvestigation: () => void;
+  onSarStatusChange?: (newStatus: 'Pending' | 'Cleared') => void;
 }
 
 export const CaseSelectorPanel: React.FC<CaseSelectorPanelProps> = ({
@@ -25,6 +27,7 @@ export const CaseSelectorPanel: React.FC<CaseSelectorPanelProps> = ({
   onOpenCase,
   isInvestigating,
   onRunInvestigation,
+  onSarStatusChange,
 }) => {
   const [dropdownOpen, setDropdownOpen] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
@@ -199,10 +202,11 @@ export const CaseSelectorPanel: React.FC<CaseSelectorPanelProps> = ({
 
         {/* Prominent Run Investigation Button */}
         <button
-          onClick={onRunInvestigation}
+          type="button"
+          onClick={() => onRunInvestigation()}
           disabled={!activeCase || isInvestigating}
           className="w-full flex items-center justify-center gap-2 py-2.5 px-3 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white font-semibold text-xs transition-colors shadow-xs disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
-          title={activeCase ? "Execute autonomous fraud investigation" : "Select a case to run investigation"}
+          title={activeCase ? "Run fraud investigation" : "Select a case to run investigation"}
         >
           {isInvestigating ? (
             <>
@@ -228,46 +232,52 @@ export const CaseSelectorPanel: React.FC<CaseSelectorPanelProps> = ({
                 </span>
               </div>
               <span 
-                className="px-2 py-1 rounded text-[10.5px] font-bold bg-white text-slate-800 border border-slate-200 shadow-2xs text-right max-w-[140px] truncate"
+                className="px-2.5 py-1 rounded text-[11px] font-semibold bg-white text-slate-800 border border-slate-200 shadow-2xs text-right max-w-[155px] truncate"
                 title={activeCase.evidence_pack.transaction_context.product_cd}
               >
-                {activeCase.evidence_pack.transaction_context.product_cd}
+                {activeCase.evidence_pack.transaction_context.product_cd.includes('(')
+                  ? activeCase.evidence_pack.transaction_context.product_cd.split('(')[1].replace(')', '')
+                  : activeCase.evidence_pack.transaction_context.product_cd}
               </span>
             </div>
 
-            {/* Model Anomaly & Sufficiency Mini-Cards */}
+            {/* Risk Score & Evidence Level */}
             <div className="grid grid-cols-2 gap-2">
               <div className="p-2 rounded-lg bg-slate-50 border border-slate-200/80 flex flex-col justify-between">
-                <span className="text-[9.5px] text-slate-500 font-mono uppercase">ML Score</span>
-                <div className="flex items-center justify-between mt-1">
-                  <span className={`text-[15px] font-mono font-bold ${
-                    activeCase.initial_risk_score >= 0.75 ? 'text-rose-600' : activeCase.initial_risk_score >= 0.45 ? 'text-amber-600' : 'text-emerald-600'
-                  }`}>
-                    {activeCase.initial_risk_score.toFixed(2)}
-                  </span>
-                  <span className={`px-1.5 py-0.2 rounded text-[9px] font-bold uppercase border ${
+                <div className="flex items-center justify-between">
+                  <span className="text-[10px] text-slate-500 font-medium">Risk Score</span>
+                  <span className={`px-1.5 py-0.2 rounded text-[9.5px] font-semibold border ${
                     activeCase.initial_risk_score >= 0.75 
                       ? 'bg-rose-50 text-rose-700 border-rose-200' 
                       : activeCase.initial_risk_score >= 0.45 
                       ? 'bg-amber-50 text-amber-700 border-amber-200' 
                       : 'bg-emerald-50 text-emerald-700 border-emerald-200'
                   }`}>
-                    {activeCase.initial_risk_score >= 0.75 ? 'Critical' : activeCase.initial_risk_score >= 0.45 ? 'Elevated' : 'Normal'}
+                    {activeCase.initial_risk_score >= 0.75 ? 'Critical' : activeCase.initial_risk_score >= 0.45 ? 'Elevated' : 'Low'}
+                  </span>
+                </div>
+                <div className="mt-1">
+                  <span className={`text-[15px] font-bold ${
+                    activeCase.initial_risk_score >= 0.75 ? 'text-rose-600' : activeCase.initial_risk_score >= 0.45 ? 'text-amber-600' : 'text-emerald-600'
+                  }`}>
+                    {(activeCase.initial_risk_score * 100).toFixed(0)}%
                   </span>
                 </div>
               </div>
 
               <div className="p-2 rounded-lg bg-slate-50 border border-slate-200/80 flex flex-col justify-between">
-                <span className="text-[9.5px] text-slate-500 font-mono uppercase">Sufficiency</span>
-                <div className="flex items-center justify-between mt-1">
-                  <span className="text-[13px] font-mono font-bold text-slate-800">
-                    {activeCase.uncertainty_dimensions.calculated_score.toFixed(1)}&thinsp;/&thinsp;{activeCase.uncertainty_dimensions.threshold}
+                <div className="flex items-center justify-between">
+                  <span className="text-[10px] text-slate-500 font-medium">Evidence</span>
+                  <span className="px-1.5 py-0.2 rounded text-[9.5px] font-semibold bg-white text-slate-700 border border-slate-200">
+                    {activeCase.uncertainty_dimensions.status === 'SUFFICIENT' ? 'Sufficient' : 'Incomplete'}
                   </span>
-                  <span 
-                    className="px-1.5 py-0.2 rounded text-[9px] font-bold uppercase bg-indigo-50 text-indigo-700 border border-indigo-200 truncate max-w-[65px]"
-                    title={activeCase.uncertainty_dimensions.status}
-                  >
-                    {activeCase.uncertainty_dimensions.status === 'SUFFICIENT' ? 'Suff.' : activeCase.uncertainty_dimensions.status === 'CONTRADICTORY' ? 'Contra.' : 'Insuff.'}
+                </div>
+                <div className="mt-1 flex items-baseline gap-1">
+                  <span className="text-[14px] font-bold text-slate-800">
+                    {activeCase.uncertainty_dimensions.calculated_score.toFixed(1)}
+                  </span>
+                  <span className="text-[10.5px] text-slate-400">
+                    / {activeCase.uncertainty_dimensions.threshold} target
                   </span>
                 </div>
               </div>
@@ -320,6 +330,22 @@ export const CaseSelectorPanel: React.FC<CaseSelectorPanelProps> = ({
                 </div>
               )}
             </div>
+
+            {/* Graph Entities Summary */}
+            <div className="pt-2 pb-0.5 border-t border-slate-100 flex items-center justify-between text-[11px] text-slate-500">
+              <span className="font-medium">Graph Entities:</span>
+              <span className="font-semibold text-slate-700">
+                {activeCase.graph_nodes.length} nodes · {activeCase.graph_edges.length} edges
+              </span>
+            </div>
+
+            {/* Regulatory Filing (SAR Report) */}
+            <SarGenerator
+              caseItem={activeCase}
+              compact={true}
+              sarStatus={activeCase?.sar_status || (activeCase?.status?.startsWith('resolved') ? 'Cleared' : 'Pending')}
+              onStatusChange={onSarStatusChange}
+            />
           </div>
         ) : (
           /* Standby State */
@@ -354,6 +380,11 @@ export const CaseSelectorPanel: React.FC<CaseSelectorPanelProps> = ({
               <span className="text-slate-400">Transaction ID:</span>
               <span className="font-mono text-slate-400">—</span>
             </div>
+
+            <SarGenerator
+              caseItem={null}
+              compact={true}
+            />
           </div>
         )}
       </div>

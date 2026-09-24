@@ -27,8 +27,8 @@ export interface GraphEdge {
 }
 
 export interface PatternObservation {
-  pattern: 'SharedDeviceRing' | 'VelocityBurst' | 'AmountAnomaly' | 'GeoMismatch' | 'EmailDomainCluster' | 'CardTesting';
-  strength: 'weak' | 'moderate' | 'strong';
+  pattern: 'SharedDeviceRing' | 'VelocityBurst' | 'AmountAnomaly' | 'GeoMismatch' | 'EmailDomainCluster' | 'CardTesting' | 'NewDeviceWithProxy';
+  strength: 'none' | 'weak' | 'moderate' | 'strong';
   observations: string[];
 }
 
@@ -165,7 +165,19 @@ export interface BenchmarkCase {
   graph_nodes: GraphNode[];
   graph_edges: GraphEdge[];
   execution_steps: ExecutionStep[];
+  card_network?: string;
+  card_type?: string;
   sar_report?: SarReport;
+  sar?: {
+    narrative?: string;
+  };
+  historical_counts?: {
+    prior_fraud_cases?: number;
+    customers_on_device?: number;
+    transactions_on_device?: number;
+    devices_on_customer?: number;
+    prior_cases_referenced?: string;
+  };
   sar_status?: 'Pending' | 'Cleared';
   analyst_notes?: string;
 }

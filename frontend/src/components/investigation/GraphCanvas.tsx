@@ -25,12 +25,14 @@ interface GraphCanvasProps {
   edges: GraphEdge[];
   caseId: string;
   isInvestigating?: boolean;
+  isTerminalOpen?: boolean;
 }
 
 export const GraphCanvas: React.FC<GraphCanvasProps> = ({
   nodes: initialNodes,
   edges,
   caseId,
+  isTerminalOpen = false,
 }) => {
   const [nodes, setNodes] = useState<GraphNode[]>(initialNodes);
   const [selectedNode, setSelectedNode] = useState<GraphNode | null>(null);
@@ -42,6 +44,7 @@ export const GraphCanvas: React.FC<GraphCanvasProps> = ({
   const [isDraggingCanvas, setIsDraggingCanvas] = useState<boolean>(false);
   const [dragStart, setDragStart] = useState<{ x: number; y: number }>({ x: 0, y: 0 });
   const [draggingNodeId, setDraggingNodeId] = useState<string | null>(null);
+  const [nodeDragOffset, setNodeDragOffset] = useState<{ x: number; y: number }>({ x: 0, y: 0 });
   const [isMaximized, setIsMaximized] = useState<boolean>(false);
   const [containerSize, setContainerSize] = useState<{ width: number; height: number }>({
     width: 900,
@@ -79,13 +82,14 @@ export const GraphCanvas: React.FC<GraphCanvasProps> = ({
     };
   }, [isMaximized]);
 
-  // Bounding box of all nodes with card half-width and margins
-  const bounds = useMemo(() => {
-    if (nodes.length === 0) {
+  // Stable reference bounding box derived from initial case topology
+  // Independent of individual node dragging so canvas camera coordinates remain rigid
+  const baseBounds = useMemo(() => {
+    if (initialNodes.length === 0) {
       return { minX: 100, maxX: 800, minY: 50, maxY: 350, width: 700, height: 300, centerX: 450, centerY: 200 };
     }
-    const xs = nodes.map(n => (typeof n.x === 'number' ? n.x : 440));
-    const ys = nodes.map(n => (typeof n.y === 'number' ? n.y : 220));
+    const xs = initialNodes.map(n => (typeof n.x === 'number' ? n.x : 440));
+    const ys = initialNodes.map(n => (typeof n.y === 'number' ? n.y : 220));
 
     // Each node card is 130px wide (-65 to +65) and 56px high (-28 to +28)
     let minX = Math.min(...xs) - 75;
@@ -94,7 +98,7 @@ export const GraphCanvas: React.FC<GraphCanvasProps> = ({
     let maxY = Math.max(...ys) + 35;
 
     // Expand bounds if coordinated ring cluster aura is present
-    if (nodes.some(n => n.isFraudRing)) {
+    if (initialNodes.some(n => n.isFraudRing)) {
       minY = Math.min(minY, 20); // cluster text at y = 32
       maxX = Math.max(maxX, 640 + 260); // aura ellipse at cx=640, rx=250
     }
@@ -112,33 +116,44 @@ export const GraphCanvas: React.FC<GraphCanvasProps> = ({
       centerX: (minX + maxX) / 2,
       centerY: (minY + maxY) / 2,
     };
-  }, [nodes]);
+  }, [initialNodes]);
 
   // Compute optimal zoom to fit the entire graph into the visible container
   const computeFitZoom = useCallback((w: number, h: number) => {
-    if (w <= 0 || h <= 0 || bounds.width <= 0 || bounds.height <= 0) return 1.0;
+    if (w <= 0 || h <= 0 || baseBounds.width <= 0 || baseBounds.height <= 0) return 1.0;
     // Margins: 70px horizontal, 100px vertical (toolbar and legend padding)
     const availW = Math.max(w - 70, 200);
     const availH = Math.max(h - 100, 200);
 
-    const scaleX = availW / bounds.width;
-    const scaleY = availH / bounds.height;
+    const scaleX = availW / baseBounds.width;
+    const scaleY = availH / baseBounds.height;
     const fit = Math.min(scaleX, scaleY);
     // Clamp to a clear, legible range (0.65 to 1.35)
     return Math.min(Math.max(Number(fit.toFixed(2)), 0.65), 1.35);
-  }, [bounds]);
+  }, [baseBounds]);
 
   // Effective SVG pan:
   // - Horizontally centered in the container
-  // - Vertically anchored so the top of the graph stays fixed below the toolbar (~58px)
-  //   even when the terminal pops up at the bottom
+  // - Initially (terminal closed): vertically centered in the middle of the available canvas
+  // - When terminal opens: moves smoothly up to the top anchor (y = 56px) so all nodes fit above terminal
+  // - Uses baseBounds so dragging any individual node NEVER moves the overall canvas
   const effectivePan = useMemo(() => {
-    const topAnchorY = 58;
+    let targetY: number;
+
+    if (isTerminalOpen) {
+      // Anchored to top under toolbar
+      const topAnchorY = 56;
+      targetY = topAnchorY - baseBounds.minY * zoomLevel;
+    } else {
+      // Balanced in the middle of the available canvas
+      targetY = containerSize.height / 2 - baseBounds.centerY * zoomLevel;
+    }
+
     return {
-      x: Math.round(containerSize.width / 2 - bounds.centerX * zoomLevel + userPanOffset.x),
-      y: Math.round(topAnchorY - bounds.minY * zoomLevel + userPanOffset.y),
+      x: Math.round(containerSize.width / 2 - baseBounds.centerX * zoomLevel + userPanOffset.x),
+      y: Math.round(targetY + userPanOffset.y),
     };
-  }, [containerSize.width, bounds.centerX, bounds.minY, zoomLevel, userPanOffset.x, userPanOffset.y]);
+  }, [containerSize.width, containerSize.height, baseBounds.centerX, baseBounds.centerY, baseBounds.minY, zoomLevel, userPanOffset.x, userPanOffset.y, isTerminalOpen]);
 
   // Keyboard shortcut: Escape to exit maximized mode
   useEffect(() => {
@@ -244,12 +259,23 @@ export const GraphCanvas: React.FC<GraphCanvasProps> = ({
     return nodes.filter(n => n.isFraudRing);
   }, [nodes]);
 
-  // Node Drag handling
+  // Node Drag handling: store offset between mouse cursor and node center
   const handleNodeMouseDown = (e: React.MouseEvent, nodeId: string) => {
     e.stopPropagation();
-    setDraggingNodeId(nodeId);
     const node = nodes.find(n => n.id === nodeId);
-    if (node) setSelectedNode(node);
+    if (!node || !containerRef.current) return;
+
+    setSelectedNode(node);
+    setDraggingNodeId(nodeId);
+
+    const rect = containerRef.current.getBoundingClientRect();
+    const mouseWorldX = (e.clientX - rect.left - effectivePan.x) / zoomLevel;
+    const mouseWorldY = (e.clientY - rect.top - effectivePan.y) / zoomLevel;
+
+    setNodeDragOffset({
+      x: mouseWorldX - (node.x ?? 400),
+      y: mouseWorldY - (node.y ?? 200),
+    });
   };
 
   const handleCanvasMouseDown = (e: React.MouseEvent) => {
@@ -259,30 +285,46 @@ export const GraphCanvas: React.FC<GraphCanvasProps> = ({
     }
   };
 
-  const handleMouseMove = (e: React.MouseEvent) => {
-    if (draggingNodeId && containerRef.current) {
-      const rect = containerRef.current.getBoundingClientRect();
-      const currentX = (e.clientX - rect.left - effectivePan.x) / zoomLevel;
-      const currentY = (e.clientY - rect.top - effectivePan.y) / zoomLevel;
+  // Global mouse handlers keep dragging smooth even if cursor moves fast
+  useEffect(() => {
+    if (!draggingNodeId && !isDraggingCanvas) return;
 
-      setNodes(prev => prev.map(n => {
-        if (n.id === draggingNodeId) {
-          return { ...n, x: Math.round(currentX), y: Math.round(currentY) };
-        }
-        return n;
-      }));
-    } else if (isDraggingCanvas) {
-      setUserPanOffset({
-        x: e.clientX - dragStart.x,
-        y: e.clientY - dragStart.y,
-      });
-    }
-  };
+    const onGlobalMouseMove = (e: MouseEvent) => {
+      if (draggingNodeId && containerRef.current) {
+        const rect = containerRef.current.getBoundingClientRect();
+        const mouseWorldX = (e.clientX - rect.left - effectivePan.x) / zoomLevel;
+        const mouseWorldY = (e.clientY - rect.top - effectivePan.y) / zoomLevel;
 
-  const handleMouseUp = () => {
-    setDraggingNodeId(null);
-    setIsDraggingCanvas(false);
-  };
+        const newX = Math.round(mouseWorldX - nodeDragOffset.x);
+        const newY = Math.round(mouseWorldY - nodeDragOffset.y);
+
+        setNodes(prev => prev.map(n => {
+          if (n.id === draggingNodeId) {
+            return { ...n, x: newX, y: newY };
+          }
+          return n;
+        }));
+      } else if (isDraggingCanvas) {
+        setUserPanOffset({
+          x: e.clientX - dragStart.x,
+          y: e.clientY - dragStart.y,
+        });
+      }
+    };
+
+    const onGlobalMouseUp = () => {
+      setDraggingNodeId(null);
+      setIsDraggingCanvas(false);
+    };
+
+    window.addEventListener('mousemove', onGlobalMouseMove);
+    window.addEventListener('mouseup', onGlobalMouseUp);
+
+    return () => {
+      window.removeEventListener('mousemove', onGlobalMouseMove);
+      window.removeEventListener('mouseup', onGlobalMouseUp);
+    };
+  }, [draggingNodeId, isDraggingCanvas, effectivePan.x, effectivePan.y, zoomLevel, nodeDragOffset, dragStart]);
 
   // Node styling helper matching Image 3
   const getNodeVisuals = (node: GraphNode) => {
@@ -469,8 +511,6 @@ export const GraphCanvas: React.FC<GraphCanvasProps> = ({
       <div 
         ref={containerRef}
         onMouseDown={handleCanvasMouseDown}
-        onMouseMove={handleMouseMove}
-        onMouseUp={handleMouseUp}
         className={`flex-1 min-h-0 w-full relative overflow-hidden cursor-${isDraggingCanvas ? 'grabbing' : 'grab'}`}
       >
         {/* Empty Canvas Placeholder when no case is selected */}
@@ -498,7 +538,10 @@ export const GraphCanvas: React.FC<GraphCanvasProps> = ({
             backgroundSize: '20px 20px',
           }}
         >
-          <g transform={`translate(${effectivePan.x}, ${effectivePan.y}) scale(${zoomLevel})`}>
+          <g 
+            transform={`translate(${effectivePan.x}, ${effectivePan.y}) scale(${zoomLevel})`}
+            className={isDraggingCanvas || draggingNodeId ? '' : 'transition-transform duration-300 ease-out'}
+          >
             {/* Coordinated Ring Cluster Bounding Aura matching Image 3 */}
             {fraudRingNodes.length > 0 && (
               <g className="pointer-events-none">
@@ -507,7 +550,8 @@ export const GraphCanvas: React.FC<GraphCanvasProps> = ({
                   cy={185}
                   rx={250}
                   ry={155}
-                  className="fill-rose-500/[0.02] stroke-rose-400 stroke-dashed animate-ring-pulse"
+                  fill="rgba(244, 63, 94, 0.04)"
+                  stroke="#fb7185"
                   strokeWidth="1.5"
                   strokeDasharray="4 3"
                 />
