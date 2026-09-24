@@ -99,6 +99,35 @@ export const InvestigationTerminal: React.FC<InvestigationTerminalProps> = ({
     }
   }, [caseId]);
 
+  // Sync approval/denial events from case activity feed into terminal
+  const prevFeedLengthRef = useRef(0);
+  useEffect(() => {
+    prevFeedLengthRef.current = 0;
+  }, [caseId]);
+
+  useEffect(() => {
+    if (!activeCase?.activity_feed) return;
+    const feed = activeCase.activity_feed;
+    if (feed.length > prevFeedLengthRef.current) {
+      const newItems = feed.slice(prevFeedLengthRef.current);
+      const newLines: OutputLine[] = newItems.map((text, i) => {
+        let color = '#94A3B8';
+        if (text.includes('[+]')) color = '#A5D6A7'; // green for approved
+        else if (text.includes('[-]')) color = '#F87171'; // red for denied
+        else if (text.includes('[✓]')) color = '#86EFAC';
+        else if (text.includes('[!]')) color = '#FBBF24'; // amber for warning
+        else if (text.includes('[i]')) color = '#64B5F6'; // blue for info
+        return {
+          key: `feed-${Date.now()}-${i}-${Math.random()}`,
+          text,
+          color,
+        };
+      });
+      setLines(prev => [...prev, ...newLines]);
+      prevFeedLengthRef.current = feed.length;
+    }
+  }, [activeCase?.activity_feed]);
+
   // Stream investigation steps sequentially (1 step per second)
   useEffect(() => {
     if (!isInvestigating) return;
@@ -289,13 +318,13 @@ export const InvestigationTerminal: React.FC<InvestigationTerminalProps> = ({
   return (
     <div 
       className="shrink-0 border-t border-[#1e1e1e] flex flex-col transition-all select-text" 
-      style={{ height: '230px', background: '#090D16' }}
+      style={{ height: '230px', background: '#0a0a0a' }}
       onClick={() => inputRef.current?.focus()}
     >
       {/* Terminal Title Bar */}
       <div
         className="flex items-center justify-between px-3 py-1.5 shrink-0 select-none"
-        style={{ background: '#0F172A', borderBottom: '1px solid #1E293B' }}
+        style={{ background: '#121212', borderBottom: '1px solid #1e1e1e' }}
       >
         <div className="flex items-center gap-2">
           <TerminalIcon className="w-3.5 h-3.5 text-indigo-400" />
@@ -349,7 +378,7 @@ export const InvestigationTerminal: React.FC<InvestigationTerminalProps> = ({
       {/* Output Stream & Prompt */}
       <div
         className="flex-1 overflow-y-auto px-3.5 py-2 font-mono text-[12px] leading-relaxed"
-        style={{ scrollbarWidth: 'thin', scrollbarColor: '#334155 #090D16' }}
+        style={{ scrollbarWidth: 'thin', scrollbarColor: '#2d2d2d #0a0a0a' }}
       >
         {/* Render lines */}
         {lines.map(line => (

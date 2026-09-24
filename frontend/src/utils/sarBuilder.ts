@@ -1,4 +1,5 @@
-import type { BenchmarkCase } from '../types/investigation';
+import type { BenchmarkCase, CaseAction } from '../types/investigation';
+import { getInitialCaseActions } from './caseActions';
 
 export interface SarReportHeader {
   sar_id: string;
@@ -119,6 +120,7 @@ export interface SuspiciousActivityReport12 {
   prior_case_context?: SarPriorCaseContext[];
   policy_basis: SarPolicyBasis[];
   recommended_action: SarRecommendedAction;
+  approval_trail: CaseAction[];
   narrative_summary: string;
   contradiction_log?: { contradiction: string; resolution: string; resolved_by?: string }[];
   final_disposition: SarFinalDisposition;
@@ -307,15 +309,26 @@ export function build12SectionSar(caseItem: BenchmarkCase, isResolved: boolean):
     source: r.source
   }));
 
-  // Part 10: Recommended Mitigation Action
+  // Part 10: Recommended Mitigation Action & Human Approval Trail
+  const actions: CaseAction[] = caseItem.actions && caseItem.actions.length > 0 
+    ? caseItem.actions 
+    : getInitialCaseActions(caseItem);
+
   const actionObj = isResolved ? caseItem.post_evidence_nba : caseItem.pre_evidence_nba;
   
   let approvalOutcome: 'executed' | 'approved' | 'denied' | 'escalated' = 'executed';
-  if (actionObj.approval_tier === 'auto') {
+  const primaryGatedAction = actions.find(a => a.approval_tier === 'L1' || a.approval_tier === 'L2');
+  if (primaryGatedAction) {
+    if (primaryGatedAction.state === 'denied') {
+      approvalOutcome = 'denied';
+    } else if (primaryGatedAction.state === 'executed' || primaryGatedAction.state === 'approved') {
+      approvalOutcome = 'approved';
+    } else {
+      approvalOutcome = 'escalated';
+    }
+  } else if (actionObj.approval_tier === 'auto') {
     approvalOutcome = 'executed';
-  } else if (actionObj.approval_tier === 'L1') {
-    approvalOutcome = isResolved ? 'approved' : 'escalated';
-  } else if (actionObj.approval_tier === 'L2') {
+  } else if (actionObj.approval_tier === 'L1' || actionObj.approval_tier === 'L2') {
     approvalOutcome = isResolved ? 'approved' : 'escalated';
   }
 
@@ -324,6 +337,8 @@ export function build12SectionSar(caseItem: BenchmarkCase, isResolved: boolean):
     approval_tier: actionObj.approval_tier,
     approval_outcome: approvalOutcome
   };
+
+  const approval_trail = actions;
 
   // Part 11: Dynamic Narrative Summary
   let narrative_summary = '';
@@ -369,6 +384,7 @@ export function build12SectionSar(caseItem: BenchmarkCase, isResolved: boolean):
     prior_case_context,
     policy_basis,
     recommended_action,
+    approval_trail,
     narrative_summary,
     final_disposition,
     case_memory_reference
@@ -381,15 +397,6 @@ export function build12SectionSar(caseItem: BenchmarkCase, isResolved: boolean):
 export function downloadSarPdf(caseItem: BenchmarkCase, isResolved: boolean): void {
   const sar = build12SectionSar(caseItem, isResolved);
   const isFraud = sar.final_disposition.outcome === 'confirmed_fraud';
-
-  let execStatusLabel = 'Executed';
-  if (sar.recommended_action.approval_tier === 'auto') {
-    execStatusLabel = 'Executed';
-  } else if (sar.recommended_action.approval_tier === 'L1') {
-    execStatusLabel = isResolved ? 'Approved (L1)' : 'Pending L1 Review';
-  } else if (sar.recommended_action.approval_tier === 'L2') {
-    execStatusLabel = isResolved ? 'Approved (L2)' : 'Pending L2 Review';
-  }
 
   const html = `<!DOCTYPE html>
 <html lang="en">
@@ -844,13 +851,13 @@ export function downloadSarPdf(caseItem: BenchmarkCase, isResolved: boolean): vo
     </tbody>
   </table>
 
-  <!-- Section 9: Recommended Action -->
-  <div class="section-title">Section 9: Recommended Action</div>
-  <table class="data-table">
+  <!-- Section 9: Action Plan & Human Approval Audit Trail -->
+  <div class="section-title">Section 9: Action Plan & Human Approval Audit Trail</div>
+  <table class="data-table" style="margin-bottom: 8px;">
     <tbody>
       <tr>
         <td style="width: 35%;">
-          <span class="lbl">Action</span>
+          <span class="lbl">Primary Containment Action</span>
           <span class="val mono">${sar.recommended_action.action}</span>
         </td>
         <td style="width: 30%;">
@@ -858,10 +865,45 @@ export function downloadSarPdf(caseItem: BenchmarkCase, isResolved: boolean): vo
           <span class="val">Tier ${sar.recommended_action.approval_tier.toUpperCase()}</span>
         </td>
         <td style="width: 35%;">
-          <span class="lbl">Status</span>
-          <span class="val">${execStatusLabel}</span>
+          <span class="lbl">Mitigation Status</span>
+          <span class="val" style="color: ${sar.recommended_action.approval_outcome === 'approved' || sar.recommended_action.approval_outcome === 'executed' ? '#15803d' : sar.recommended_action.approval_outcome === 'denied' ? '#b91c1c' : '#b45309'}; font-weight: bold;">
+            ${sar.recommended_action.approval_outcome.toUpperCase()}
+          </span>
         </td>
       </tr>
+    </tbody>
+  </table>
+
+  <!-- Detailed Human Approval Trail pulled from action state -->
+  <table class="data-table" style="font-size: 11px;">
+    <thead>
+      <tr style="background: #f8fafc;">
+        <th style="padding: 6px 8px; text-align: left; font-size: 10.5px; border-bottom: 1px solid #cbd5e1; color: #475569;">Action Item</th>
+        <th style="padding: 6px 8px; text-align: left; font-size: 10.5px; border-bottom: 1px solid #cbd5e1; color: #475569;">Tier</th>
+        <th style="padding: 6px 8px; text-align: left; font-size: 10.5px; border-bottom: 1px solid #cbd5e1; color: #475569;">State / Result</th>
+        <th style="padding: 6px 8px; text-align: left; font-size: 10.5px; border-bottom: 1px solid #cbd5e1; color: #475569;">Decision Maker</th>
+        <th style="padding: 6px 8px; text-align: left; font-size: 10.5px; border-bottom: 1px solid #cbd5e1; color: #475569;">Timestamp</th>
+      </tr>
+    </thead>
+    <tbody>
+      ${(sar.approval_trail || []).map(act => {
+        const isApp = act.state === 'approved' || act.state === 'executed';
+        const isDen = act.state === 'denied';
+        const stateColor = isApp ? '#15803d' : isDen ? '#b91c1c' : '#b45309';
+        const stateText = isApp ? (act.decisionBy ? 'Approved & Executed' : 'Executed') : isDen ? 'Denied (Aborted)' : 'Pending Approval';
+        const decisionText = act.decisionBy ? `${act.decisionBy} (${act.decisionTier || act.approval_tier})` : act.approval_tier === 'auto' ? 'Automated Rule Engine' : 'Awaiting Review';
+        const tsText = act.decisionAt || act.executedAt || '—';
+
+        return `
+          <tr>
+            <td style="padding: 5px 8px; font-weight: 500;">${act.title}</td>
+            <td style="padding: 5px 8px; font-family: monospace; font-size: 10px;">${act.approval_tier.toUpperCase()}</td>
+            <td style="padding: 5px 8px; font-weight: 600; color: ${stateColor};">${stateText}</td>
+            <td style="padding: 5px 8px;">${decisionText}</td>
+            <td style="padding: 5px 8px; font-family: monospace; color: #64748b; font-size: 10px;">${tsText}</td>
+          </tr>
+        `;
+      }).join('')}
     </tbody>
   </table>
 

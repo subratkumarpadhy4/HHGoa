@@ -5,12 +5,22 @@ import { CaseTabBar } from './components/layout/CaseTabBar';
 import { GraphCanvas } from './components/investigation/GraphCanvas';
 import { InvestigationTerminal } from './components/investigation/InvestigationTerminal';
 import { NbaProgressionCard } from './components/decision/NbaProgressionCard';
+import { SarGenerator } from './components/decision/SarGenerator';
 import { BENCHMARK_CASES } from './data/benchmarkCases';
 import type { BenchmarkCase } from './types/investigation';
 import { downloadSarPdf } from './utils/sarBuilder';
+import { 
+  initializeCaseWithActions, 
+  prepareActionsPostInvestigation, 
+  evaluateCaseStatus, 
+  getFormattedTimestamp, 
+  DEMO_ANALYST_NAME 
+} from './utils/caseActions';
 
 export const App: React.FC = () => {
-  const [cases, setCases] = useState<BenchmarkCase[]>(BENCHMARK_CASES);
+  const [cases, setCases] = useState<BenchmarkCase[]>(() => 
+    BENCHMARK_CASES.map(c => initializeCaseWithActions(c))
+  );
   const [openCaseIds, setOpenCaseIds] = useState<string[]>([
     BENCHMARK_CASES[0].case_id,
     BENCHMARK_CASES[1].case_id
@@ -70,7 +80,7 @@ export const App: React.FC = () => {
     setIsInvestigating(true);
   }, [isInvestigating, activeCase, cases, openCaseIds]);
 
-  // Complete autonomous investigation and transition active case to resolved verdict
+  // Complete autonomous investigation: transition actions to pending_approval (NOT auto-resolved)
   const handleInvestigationComplete = useCallback((completedCaseId?: unknown) => {
     setIsInvestigating(false);
     const targetId = typeof completedCaseId === 'string' && completedCaseId ? completedCaseId : activeCaseId;
@@ -78,14 +88,134 @@ export const App: React.FC = () => {
 
     setCases(prev => prev.map(c => {
       if (c.case_id === targetId) {
-        const isFraudCase = c.initial_risk_score >= 0.75 || c.graph_nodes.some(n => n.isFraudRing);
-        const resolvedStatus = isFraudCase ? 'resolved_fraud' : 'resolved_cleared';
-        const sarVerdict: 'Pending' | 'Cleared' = isFraudCase ? 'Pending' : 'Cleared';
-        return { ...c, status: resolvedStatus, sar_status: sarVerdict };
+        const post = prepareActionsPostInvestigation(c);
+        return {
+          ...c,
+          status: post.newStatus,
+          sar_status: post.newStatus === 'resolved_fraud' ? 'Pending' : (c.sar_status || 'Pending'),
+          actions: post.actions,
+          activity_feed: [...(c.activity_feed || []), ...post.feedLines],
+        };
       }
       return c;
     }));
   }, [activeCaseId]);
+
+  // Approve an L1 or L2 gated action
+  const handleApproveAction = useCallback((caseId: string, actionId: string) => {
+    setCases(prev => prev.map(c => {
+      if (c.case_id !== caseId) return c;
+      const currentActions = c.actions || [];
+      const action = currentActions.find(a => a.id === actionId);
+      if (!action) return c;
+
+      const time = getFormattedTimestamp();
+      const updatedActions = currentActions.map(a => {
+        if (a.id === actionId) {
+          return {
+            ...a,
+            state: 'executed' as const,
+            decisionBy: DEMO_ANALYST_NAME,
+            decisionAt: time,
+            decisionTier: a.approval_tier,
+            executedAt: time,
+          };
+        }
+        return a;
+      });
+
+      const logLine = `[${time}] [+] ${action.title} approved by ${DEMO_ANALYST_NAME} (${action.approval_tier})`;
+      const execLine = `[${time}] [✓] ${action.title} executed successfully via Gateway`;
+
+      const evalResult = evaluateCaseStatus(c, updatedActions);
+
+      return {
+        ...c,
+        actions: updatedActions,
+        status: evalResult.status,
+        sar_status: evalResult.status === 'resolved_fraud' ? 'Pending' : c.sar_status,
+        denial_warning: evalResult.denial_warning,
+        activity_feed: [...(c.activity_feed || []), logLine, execLine],
+      };
+    }));
+  }, []);
+
+  // Deny an L1 or L2 gated action
+  const handleDenyAction = useCallback((caseId: string, actionId: string) => {
+    setCases(prev => prev.map(c => {
+      if (c.case_id !== caseId) return c;
+      const currentActions = c.actions || [];
+      const action = currentActions.find(a => a.id === actionId);
+      if (!action) return c;
+
+      const time = getFormattedTimestamp();
+      const updatedActions = currentActions.map(a => {
+        if (a.id === actionId) {
+          return {
+            ...a,
+            state: 'denied' as const,
+            decisionBy: DEMO_ANALYST_NAME,
+            decisionAt: time,
+            decisionTier: a.approval_tier,
+            executedAt: undefined,
+          };
+        }
+        return a;
+      });
+
+      const logLine = `[${time}] [-] ${action.title} denied by ${DEMO_ANALYST_NAME} (${action.approval_tier})`;
+      const warnLine = `[${time}] [!] Containment incomplete — ${action.title} denied`;
+
+      const evalResult = evaluateCaseStatus(c, updatedActions);
+
+      return {
+        ...c,
+        actions: updatedActions,
+        status: evalResult.status,
+        denial_warning: evalResult.denial_warning,
+        activity_feed: [...(c.activity_feed || []), logLine, warnLine],
+      };
+    }));
+  }, []);
+
+  // Toggle checkmark for an auto-tier action
+  const handleToggleAutoAction = useCallback((caseId: string, actionId: string) => {
+    setCases(prev => prev.map(c => {
+      if (c.case_id !== caseId) return c;
+      const currentActions = c.actions || [];
+      const action = currentActions.find(a => a.id === actionId);
+      if (!action) return c;
+
+      const time = getFormattedTimestamp();
+      const isCurrentlyExecuted = action.state === 'executed';
+      const newState = isCurrentlyExecuted ? ('recommended' as const) : ('executed' as const);
+
+      const updatedActions = currentActions.map(a => {
+        if (a.id === actionId) {
+          return {
+            ...a,
+            state: newState,
+            executedAt: newState === 'executed' ? time : undefined,
+          };
+        }
+        return a;
+      });
+
+      const feedLine = newState === 'executed'
+        ? `[${time}] [✓] ${action.title} completed`
+        : `[${time}] [i] ${action.title} marked pending`;
+
+      const evalResult = evaluateCaseStatus(c, updatedActions);
+
+      return {
+        ...c,
+        actions: updatedActions,
+        status: evalResult.status,
+        denial_warning: evalResult.denial_warning,
+        activity_feed: [...(c.activity_feed || []), feedLine],
+      };
+    }));
+  }, []);
 
   return (
     <div className="flex flex-col h-screen w-screen bg-[#F8FAFC] text-slate-900 overflow-hidden font-sans antialiased">
@@ -103,14 +233,6 @@ export const App: React.FC = () => {
             onOpenCase={handleOpenCase}
             isInvestigating={isInvestigating}
             onRunInvestigation={handleRunAutonomousInvestigation}
-            onSarStatusChange={(newStatus) => {
-              if (!activeCase) return;
-              setCases(prev => prev.map(c => 
-                c.case_id === activeCase.case_id 
-                  ? { ...c, sar_status: newStatus } 
-                  : c
-              ));
-            }}
           />
         </section>
 
@@ -127,7 +249,7 @@ export const App: React.FC = () => {
             onToggleTerminal={() => setIsTerminalOpen(prev => !prev)}
           />
 
-          {/* Interactive Topology Graph Canvas — full flex height */}
+          {/* Interactive Topology Graph Canvas — full flex height (untouched) */}
           <div className="flex-1 min-h-0 relative flex flex-col overflow-hidden">
             <GraphCanvas
               nodes={activeCase ? activeCase.graph_nodes : []}
@@ -160,13 +282,32 @@ export const App: React.FC = () => {
 
         {/* Column 3: Decision Engine, Policy Gates & Incident Review (320px) */}
         <section className="w-[320px] shrink-0 h-full flex flex-col bg-slate-50/70 overflow-hidden" aria-label="Decision Engine and Policy Gates">
-          <div className="flex-1 overflow-y-auto p-3.5 space-y-3.5">
-            {/* Next-Best Action Progression / Incident Review */}
+          <div className="flex-1 overflow-y-auto p-3.5">
+            {/* Next-Best Action Progression / Incident Review with Human Approval Gate */}
             <NbaProgressionCard
               currentCase={activeCase}
               isInvestigating={isInvestigating}
               onRunInvestigation={handleRunAutonomousInvestigation}
+              onApproveAction={handleApproveAction}
+              onDenyAction={handleDenyAction}
+              onToggleAutoAction={handleToggleAutoAction}
             />
+
+            {/* Relocated Regulatory Filing Section (Minimum 20px vertical spacing below Incident Review) */}
+            <div className="mt-5">
+              <SarGenerator
+                caseItem={activeCase}
+                sarStatus={activeCase?.sar_status || (activeCase?.status?.startsWith('resolved') ? 'Cleared' : 'Pending')}
+                onStatusChange={(newStatus) => {
+                  if (!activeCase) return;
+                  setCases(prev => prev.map(c => 
+                    c.case_id === activeCase.case_id 
+                      ? { ...c, sar_status: newStatus } 
+                      : c
+                  ));
+                }}
+              />
+            </div>
           </div>
         </section>
       </main>

@@ -130,6 +130,20 @@ export interface ExecutionStep {
   outputSnippet?: string;
 }
 
+export type ActionState = 'recommended' | 'pending_approval' | 'approved' | 'denied' | 'executed';
+
+export interface CaseAction {
+  id: string;
+  title: string;
+  description: string;
+  approval_tier: ApprovalTier;
+  state: ActionState;
+  decisionBy?: string;
+  decisionAt?: string;
+  decisionTier?: ApprovalTier;
+  executedAt?: string;
+}
+
 export interface SarReport {
   sar_id: string;
   filing_date: string;
@@ -180,15 +194,32 @@ export interface BenchmarkCase {
   };
   sar_status?: 'Pending' | 'Cleared';
   analyst_notes?: string;
+  actions?: CaseAction[];
+  activity_feed?: string[];
+  denial_warning?: string;
 }
 
 export type CaseLifecycleStatus = 'Resolved' | 'Closed' | 'Pending';
 
-export function getCaseLifecycleStatus(c: { status: CaseStatus | string }): CaseLifecycleStatus {
+export function getCaseLifecycleStatus(c: { status: CaseStatus | string; actions?: CaseAction[] }): CaseLifecycleStatus {
+  // If case has L1/L2 actions that are pending approval or denied, it cannot advance to Resolved or Closed
+  if (c.actions && c.actions.length > 0) {
+    const hasPendingL1L2 = c.actions.some(
+      a => (a.approval_tier === 'L1' || a.approval_tier === 'L2') && 
+           (a.state === 'pending_approval' || a.state === 'recommended')
+    );
+    const hasDenied = c.actions.some(
+      a => (a.approval_tier === 'L1' || a.approval_tier === 'L2') && a.state === 'denied'
+    );
+    if (hasPendingL1L2 || hasDenied) {
+      return 'Pending';
+    }
+  }
+
   if (c.status === 'resolved_cleared' || c.status === 'resolved') {
     return 'Resolved';
   }
-  if (c.status === 'resolved_fraud' || c.status === 'closed' || c.status === 'escalated_human') {
+  if (c.status === 'resolved_fraud' || c.status === 'closed') {
     return 'Closed';
   }
   return 'Pending';

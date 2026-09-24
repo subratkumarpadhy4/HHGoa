@@ -16,9 +16,13 @@ import {
   Move,
   ChevronDown,
   Check,
-  RotateCcw
+  RotateCcw,
+  FileText,
+  Activity
 } from 'lucide-react';
 import type { GraphNode, GraphEdge } from '../../types/investigation';
+
+export type ActiveMainView = 'graph' | 'evidence_ledger' | 'next_best_action';
 
 interface GraphCanvasProps {
   nodes: GraphNode[];
@@ -32,6 +36,7 @@ export const GraphCanvas: React.FC<GraphCanvasProps> = ({
   nodes: initialNodes,
   edges,
   caseId,
+  isInvestigating = false,
   isTerminalOpen = false,
 }) => {
   const [nodes, setNodes] = useState<GraphNode[]>(initialNodes);
@@ -43,6 +48,18 @@ export const GraphCanvas: React.FC<GraphCanvasProps> = ({
   const [userPanOffset, setUserPanOffset] = useState<{ x: number; y: number }>({ x: 0, y: 0 });
   const [isDraggingCanvas, setIsDraggingCanvas] = useState<boolean>(false);
   const [dragStart, setDragStart] = useState<{ x: number; y: number }>({ x: 0, y: 0 });
+  const [activeMainView, setActiveMainView] = useState<ActiveMainView>('graph');
+
+  // Reset to 'graph' view whenever a new case is selected or an investigation is run
+  useEffect(() => {
+    setActiveMainView('graph');
+  }, [caseId]);
+
+  useEffect(() => {
+    if (isInvestigating) {
+      setActiveMainView('graph');
+    }
+  }, [isInvestigating]);
   const [draggingNodeId, setDraggingNodeId] = useState<string | null>(null);
   const [nodeDragOffset, setNodeDragOffset] = useState<{ x: number; y: number }>({ x: 0, y: 0 });
   const [isMaximized, setIsMaximized] = useState<boolean>(false);
@@ -369,149 +386,194 @@ export const GraphCanvas: React.FC<GraphCanvasProps> = ({
         ? 'fixed inset-0 z-50 bg-white w-screen h-screen' 
         : 'relative flex-1 min-h-0 w-full bg-slate-50/70 overflow-hidden'
     }`}>
-      {/* Top Floating Graph Toolbar with Dropdown Menu */}
+      {/* Top Floating Graph Toolbar with View Switcher and Control Cluster */}
       <div className="absolute top-3 left-3 right-3 z-20 flex items-center justify-between pointer-events-none">
-        {/* Dropdown Menu for Filters */}
-        <div ref={dropdownRef} className="pointer-events-auto relative flex items-center gap-1.5">
+        {/* LEFT: View-Switcher Segmented Control */}
+        <div className="pointer-events-auto flex items-center p-0.5 bg-white/95 backdrop-blur-md border border-slate-200 shadow-sm rounded-lg">
           <button
             type="button"
-            onClick={() => setIsFilterDropdownOpen(prev => !prev)}
-            className="flex items-center space-x-2 bg-white/95 backdrop-blur-md border border-slate-200 hover:border-slate-300 shadow-sm px-3 py-1.5 rounded-lg text-xs transition-colors focus:outline-none focus:ring-1 focus:ring-indigo-500"
+            onClick={() => setActiveMainView('graph')}
+            className={`px-3 py-1 rounded-md text-[11px] transition-all cursor-pointer flex items-center gap-1.5 ${
+              activeMainView === 'graph'
+                ? 'bg-slate-900 text-white font-semibold shadow-xs'
+                : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100/70 font-medium'
+            }`}
           >
-            <Filter className="w-3.5 h-3.5 text-slate-500" />
-            <span className="font-semibold text-slate-600 text-[11px]">Filter:</span>
-            <span className="px-2 py-0.5 rounded bg-slate-900 text-white font-bold text-[10.5px] font-mono">
-              {activeOption.label}
-            </span>
-            <span className="text-[10px] text-slate-400 font-mono">({activeOption.count})</span>
-            <ChevronDown className={`w-3.5 h-3.5 text-slate-400 transition-transform duration-150 ${isFilterDropdownOpen ? 'rotate-180' : ''}`} />
+            <span>Graph</span>
           </button>
 
-          {/* Reset filter button if not all */}
-          {activeFilter !== 'all' && (
-            <button
-              type="button"
-              onClick={() => setActiveFilter('all')}
-              className="flex items-center gap-1 px-2 py-1.5 rounded-lg bg-white border border-slate-200 text-slate-600 hover:bg-slate-50 text-[10.5px] font-medium shadow-xs"
-              title="Reset to All Entities"
-            >
-              <RotateCcw className="w-3 h-3 text-slate-400" />
-              <span>Reset</span>
-            </button>
-          )}
+          <button
+            type="button"
+            onClick={() => setActiveMainView('evidence_ledger')}
+            className={`px-3 py-1 rounded-md text-[11px] transition-all cursor-pointer flex items-center gap-1.5 ${
+              activeMainView === 'evidence_ledger'
+                ? 'bg-slate-900 text-white font-semibold shadow-xs'
+                : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100/70 font-medium'
+            }`}
+          >
+            <span>Evidence</span>
+          </button>
 
-          {/* Dropdown Menu Popup */}
-          {isFilterDropdownOpen && (
-            <div className="absolute top-full left-0 mt-1.5 w-52 bg-white border border-slate-200 rounded-xl shadow-lg p-1.5 z-30 animate-in fade-in slide-in-from-top-1 duration-100">
-              <div className="px-2 py-1 text-[10px] font-bold text-slate-400 uppercase tracking-wider font-mono">
-                Entity Types
-              </div>
-              <div className="space-y-0.5">
-                {filterOptions.map((opt) => {
-                  const isCurrent = activeFilter === opt.key;
-                  return (
-                    <button
-                      key={opt.key}
-                      type="button"
-                      onClick={() => {
-                        setActiveFilter(opt.key);
-                        setIsFilterDropdownOpen(false);
-                      }}
-                      className={`w-full flex items-center justify-between px-2.5 py-1.5 rounded-lg text-xs transition-colors ${
-                        isCurrent 
-                          ? 'bg-indigo-50 text-indigo-700 font-semibold' 
-                          : 'text-slate-700 hover:bg-slate-50'
-                      }`}
-                    >
-                      <div className="flex items-center space-x-2">
-                        <span className={`w-2 h-2 rounded-full ${opt.color}`} />
-                        <span>{opt.label}</span>
-                      </div>
-                      <div className="flex items-center space-x-1.5">
-                        <span className={`text-[10px] font-mono px-1.5 py-0.2 rounded ${
-                          isCurrent ? 'bg-indigo-100 text-indigo-800 font-bold' : 'bg-slate-100 text-slate-500'
-                        }`}>
-                          {opt.count}
-                        </span>
-                        {isCurrent && <Check className="w-3.5 h-3.5 text-indigo-600 stroke-[2.5]" />}
-                      </div>
-                    </button>
-                  );
-                })}
-              </div>
-            </div>
-          )}
+          <button
+            type="button"
+            onClick={() => setActiveMainView('next_best_action')}
+            className={`px-3 py-1 rounded-md text-[11px] transition-all cursor-pointer flex items-center gap-1.5 ${
+              activeMainView === 'next_best_action'
+                ? 'bg-slate-900 text-white font-semibold shadow-xs'
+                : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100/70 font-medium'
+            }`}
+          >
+            <span>Next best action</span>
+          </button>
         </div>
 
-        {/* Canvas Controls: Zoom (hidden when enlarged), Maximize/Minimize, Labels */}
-        <div className="pointer-events-auto flex items-center space-x-1 bg-white/95 backdrop-blur-md border border-slate-200 shadow-sm p-1 rounded-lg text-xs">
-          {!isMaximized && (
-            <>
-              <button
-                type="button"
-                onClick={handleZoomIn}
-                className="p-1 rounded hover:bg-slate-100 text-slate-700 transition-colors"
-                title="Zoom In"
-              >
-                <ZoomIn className="w-4 h-4" />
-              </button>
-              <button
-                type="button"
-                onClick={handleZoomOut}
-                className="p-1 rounded hover:bg-slate-100 text-slate-700 transition-colors"
-                title="Zoom Out"
-              >
-                <ZoomOut className="w-4 h-4" />
-              </button>
-              
-              <button
-                type="button"
-                onClick={handleResetZoomPan}
-                className="px-1.5 py-0.5 rounded text-[11px] font-mono text-slate-600 hover:bg-slate-100 hover:text-indigo-600 font-semibold transition-colors"
-                title="Reset Pan & Zoom"
-              >
-                {Math.round(zoomLevel * 100)}%
-              </button>
+        {/* RIGHT: Compact Control Cluster with Filter Dropdown + Zoom Controls */}
+        <div className="pointer-events-auto flex items-center gap-1.5">
+          {/* Moved & Resized Filter Dropdown (compact padding and font) */}
+          <div ref={dropdownRef} className="relative flex items-center gap-1">
+            <button
+              type="button"
+              onClick={() => setIsFilterDropdownOpen(prev => !prev)}
+              className="flex items-center space-x-1.5 bg-white/95 backdrop-blur-md border border-slate-200 hover:border-slate-300 shadow-sm px-2 py-1 rounded-lg text-[11px] transition-colors focus:outline-none focus:ring-1 focus:ring-indigo-500 cursor-pointer"
+              title="Filter by Entity Type"
+            >
+              <Filter className="w-3 h-3 text-slate-500" />
+              <span className="font-semibold text-slate-600 text-[10.5px]">Filter:</span>
+              <span className="px-1.5 py-0.2 rounded bg-slate-900 text-white font-bold text-[10px] font-mono">
+                {activeOption.label}
+              </span>
+              <span className="text-[9.5px] text-slate-400 font-mono">({activeOption.count})</span>
+              <ChevronDown className={`w-3 h-3 text-slate-400 transition-transform duration-150 ${isFilterDropdownOpen ? 'rotate-180' : ''}`} />
+            </button>
 
-              <div className="h-3 w-px bg-slate-200 mx-0.5" />
-            </>
-          )}
-
-          <button
-            type="button"
-            onClick={() => setIsMaximized(prev => !prev)}
-            className={`p-1 rounded transition-colors ${
-              isMaximized ? 'bg-indigo-100 text-indigo-700 hover:bg-indigo-200' : 'hover:bg-slate-100 text-slate-700'
-            }`}
-            title={isMaximized ? "Exit Fullscreen (Esc)" : "Enlarge Graph to Fullscreen"}
-          >
-            {isMaximized ? (
-              <Minimize2 className="w-4 h-4" />
-            ) : (
-              <Maximize2 className="w-4 h-4" />
+            {/* Reset filter button if not all */}
+            {activeFilter !== 'all' && (
+              <button
+                type="button"
+                onClick={() => setActiveFilter('all')}
+                className="flex items-center gap-1 px-1.5 py-1 rounded-lg bg-white border border-slate-200 text-slate-600 hover:bg-slate-50 text-[10px] font-medium shadow-xs cursor-pointer"
+                title="Reset to All Entities"
+              >
+                <RotateCcw className="w-2.5 h-2.5 text-slate-400" />
+                <span>Reset</span>
+              </button>
             )}
-          </button>
 
-          <div className="h-3 w-px bg-slate-200 mx-0.5" />
+            {/* Dropdown Menu Popup - Aligned to right */}
+            {isFilterDropdownOpen && (
+              <div className="absolute top-full right-0 mt-1.5 w-52 bg-white border border-slate-200 rounded-xl shadow-lg p-1.5 z-30 animate-in fade-in slide-in-from-top-1 duration-100">
+                <div className="px-2 py-1 text-[10px] font-bold text-slate-400 uppercase tracking-wider font-mono">
+                  Entity Types
+                </div>
+                <div className="space-y-0.5">
+                  {filterOptions.map((opt) => {
+                    const isCurrent = activeFilter === opt.key;
+                    return (
+                      <button
+                        key={opt.key}
+                        type="button"
+                        onClick={() => {
+                          setActiveFilter(opt.key);
+                          setIsFilterDropdownOpen(false);
+                        }}
+                        className={`w-full flex items-center justify-between px-2.5 py-1.5 rounded-lg text-xs transition-colors cursor-pointer ${
+                          isCurrent 
+                            ? 'bg-indigo-50 text-indigo-700 font-semibold' 
+                            : 'text-slate-700 hover:bg-slate-50'
+                        }`}
+                      >
+                        <div className="flex items-center space-x-2">
+                          <span className={`w-2 h-2 rounded-full ${opt.color}`} />
+                          <span>{opt.label}</span>
+                        </div>
+                        <div className="flex items-center space-x-1.5">
+                          <span className={`text-[10px] font-mono px-1.5 py-0.2 rounded ${
+                            isCurrent ? 'bg-indigo-100 text-indigo-800 font-bold' : 'bg-slate-100 text-slate-500'
+                          }`}>
+                            {opt.count}
+                          </span>
+                          {isCurrent && <Check className="w-3.5 h-3.5 text-indigo-600 stroke-[2.5]" />}
+                        </div>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+          </div>
 
-          <button
-            type="button"
-            onClick={() => setShowEdgeLabels(!showEdgeLabels)}
-            className={`px-2 py-0.5 rounded text-[10.5px] font-medium transition-colors ${
-              showEdgeLabels ? 'bg-indigo-50 text-indigo-700 border border-indigo-200 font-semibold' : 'text-slate-500 hover:bg-slate-100 border border-transparent'
-            }`}
-            title="Toggle Edge Labels"
-          >
-            <span>Labels</span>
-          </button>
+          {/* Canvas Controls: Zoom (hidden when enlarged), Maximize/Minimize, Labels */}
+          <div className="flex items-center space-x-1 bg-white/95 backdrop-blur-md border border-slate-200 shadow-sm p-1 rounded-lg text-xs">
+            {!isMaximized && (
+              <>
+                <button
+                  type="button"
+                  onClick={handleZoomIn}
+                  className="p-1 rounded hover:bg-slate-100 text-slate-700 transition-colors cursor-pointer"
+                  title="Zoom In"
+                >
+                  <ZoomIn className="w-4 h-4" />
+                </button>
+                <button
+                  type="button"
+                  onClick={handleZoomOut}
+                  className="p-1 rounded hover:bg-slate-100 text-slate-700 transition-colors cursor-pointer"
+                  title="Zoom Out"
+                >
+                  <ZoomOut className="w-4 h-4" />
+                </button>
+                
+                <button
+                  type="button"
+                  onClick={handleResetZoomPan}
+                  className="px-1.5 py-0.5 rounded text-[11px] font-mono text-slate-600 hover:bg-slate-100 hover:text-indigo-600 font-semibold transition-colors cursor-pointer"
+                  title="Reset Pan & Zoom"
+                >
+                  {Math.round(zoomLevel * 100)}%
+                </button>
+
+                <div className="h-3 w-px bg-slate-200 mx-0.5" />
+              </>
+            )}
+
+            <button
+              type="button"
+              onClick={() => setIsMaximized(prev => !prev)}
+              className={`p-1 rounded transition-colors cursor-pointer ${
+                isMaximized ? 'bg-indigo-100 text-indigo-700 hover:bg-indigo-200' : 'hover:bg-slate-100 text-slate-700'
+              }`}
+              title={isMaximized ? "Exit Fullscreen (Esc)" : "Enlarge Graph to Fullscreen"}
+            >
+              {isMaximized ? (
+                <Minimize2 className="w-4 h-4" />
+              ) : (
+                <Maximize2 className="w-4 h-4" />
+              )}
+            </button>
+
+            <div className="h-3 w-px bg-slate-200 mx-0.5" />
+
+            <button
+              type="button"
+              onClick={() => setShowEdgeLabels(!showEdgeLabels)}
+              className={`px-2 py-0.5 rounded text-[10.5px] font-medium transition-colors cursor-pointer ${
+                showEdgeLabels ? 'bg-indigo-50 text-indigo-700 border border-indigo-200 font-semibold' : 'text-slate-500 hover:bg-slate-100 border border-transparent'
+              }`}
+              title="Toggle Edge Labels"
+            >
+              <span>Labels</span>
+            </button>
+          </div>
         </div>
       </div>
 
-      {/* SVG Canvas Area */}
+      {/* SVG Canvas Area: Kept mounted to preserve exact pan/zoom/filter state */}
       <div 
         ref={containerRef}
         onMouseDown={handleCanvasMouseDown}
-        className={`flex-1 min-h-0 w-full relative overflow-hidden cursor-${isDraggingCanvas ? 'grabbing' : 'grab'}`}
+        className={`flex-1 min-h-0 w-full relative overflow-hidden cursor-${isDraggingCanvas ? 'grabbing' : 'grab'} ${
+          activeMainView !== 'graph' ? 'hidden' : ''
+        }`}
       >
         {/* Empty Canvas Placeholder when no case is selected */}
         {nodes.length === 0 && (
@@ -778,48 +840,125 @@ export const GraphCanvas: React.FC<GraphCanvasProps> = ({
         )}
       </div>
 
-      {/* Legend Footer */}
-      <div className="h-8 bg-white border-t border-slate-200 px-4 flex items-center justify-between text-[10px] text-slate-500 shrink-0">
-        {nodes.length > 0 ? (
-          <div className="flex items-center space-x-3">
-            <span className="font-bold text-slate-700 uppercase">Topology Subgraph:</span>
-            <span className="flex items-center space-x-1">
-              <span className="w-2 h-2 rounded-full bg-slate-800" />
-              <span>Transaction</span>
-            </span>
-            <span className="flex items-center space-x-1">
-              <span className="w-2 h-2 rounded-full bg-emerald-500" />
-              <span>Device</span>
-            </span>
-            <span className="flex items-center space-x-1">
-              <span className="w-2 h-2 rounded-full bg-purple-500" />
-              <span>Card</span>
-            </span>
-            <span className="flex items-center space-x-1">
-              <span className="w-2 h-2 rounded-full bg-sky-500" />
-              <span>Account</span>
-            </span>
-            <span className="flex items-center space-x-1">
-              <span className="w-2 h-2 rounded-full bg-amber-500" />
-              <span>IP Address</span>
-            </span>
-            <span className="flex items-center space-x-1">
-              <span className="w-2 h-2 rounded-full bg-rose-500" />
-              <span>Prior Case (Memory)</span>
-            </span>
+      {/* View 2: Evidence Placeholder/Stub */}
+      {activeMainView === 'evidence_ledger' && (
+        <div className="flex-1 min-h-0 w-full overflow-y-auto p-6 bg-slate-50/70 pt-16 select-text animate-in fade-in duration-150">
+          <div className="max-w-3xl mx-auto space-y-4">
+            <div className="bg-white rounded-xl border border-slate-200 p-5 shadow-xs">
+              <div className="flex items-center justify-between pb-3 border-b border-slate-100">
+                <div className="flex items-center gap-2">
+                  <FileText className="w-4 h-4 text-indigo-600" />
+                  <h3 className="text-sm font-bold text-slate-900">Evidence</h3>
+                </div>
+                <span className="px-2 py-0.5 rounded text-[10px] font-mono font-semibold bg-indigo-50 text-indigo-700 border border-indigo-200">
+                  Case: {caseId || 'STANDBY'}
+                </span>
+              </div>
+              <p className="text-xs text-slate-500 mt-2.5 leading-relaxed">
+                Chronological ledger of raw evidence signals, device fingerprint hashes, IP routing metadata, and multi-entity links aggregated for this investigation.
+              </p>
+              <div className="mt-4 grid grid-cols-3 gap-3">
+                <div className="p-3 bg-slate-50 rounded-lg border border-slate-200/80">
+                  <div className="text-[10px] uppercase font-mono text-slate-400 font-semibold">Graph Entities</div>
+                  <div className="text-lg font-bold text-slate-800 mt-1">{nodes.length} nodes</div>
+                  <div className="text-[11px] text-slate-500">{edges.length} topology edges</div>
+                </div>
+                <div className="p-3 bg-slate-50 rounded-lg border border-slate-200/80">
+                  <div className="text-[10px] uppercase font-mono text-slate-400 font-semibold">Active Filter</div>
+                  <div className="text-lg font-bold text-indigo-700 mt-1">{activeOption.label}</div>
+                  <div className="text-[11px] text-slate-500">{activeOption.count} items matching</div>
+                </div>
+                <div className="p-3 bg-slate-50 rounded-lg border border-slate-200/80">
+                  <div className="text-[10px] uppercase font-mono text-slate-400 font-semibold">Ledger Status</div>
+                  <div className="text-lg font-bold text-emerald-600 mt-1">Verified</div>
+                  <div className="text-[11px] text-slate-500">Immutable audit log</div>
+                </div>
+              </div>
+            </div>
           </div>
-        ) : (
-          <div className="flex items-center space-x-2 text-slate-400">
-            <span className="font-bold uppercase">Topology Subgraph:</span>
-            <span className="italic">No case selected</span>
-          </div>
-        )}
-
-        <div className="flex items-center space-x-1.5 text-slate-400">
-          <Move className="w-3 h-3" />
-          <span>Click & Drag to reposition nodes or pan</span>
         </div>
-      </div>
+      )}
+
+      {/* View 3: Next Best Action Placeholder/Stub */}
+      {activeMainView === 'next_best_action' && (
+        <div className="flex-1 min-h-0 w-full overflow-y-auto p-6 bg-slate-50/70 pt-16 select-text animate-in fade-in duration-150">
+          <div className="max-w-3xl mx-auto space-y-4">
+            <div className="bg-white rounded-xl border border-slate-200 p-5 shadow-xs">
+              <div className="flex items-center justify-between pb-3 border-b border-slate-100">
+                <div className="flex items-center gap-2">
+                  <Activity className="w-4 h-4 text-indigo-600" />
+                  <h3 className="text-sm font-bold text-slate-900">Next Best Action Engine</h3>
+                </div>
+                <span className="px-2 py-0.5 rounded text-[10px] font-mono font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200">
+                  Autonomous Policy Ready
+                </span>
+              </div>
+              <p className="text-xs text-slate-500 mt-2.5 leading-relaxed">
+                Deterministic policy evaluation matrix and action recommendation pathway synthesized from transaction uncertainty dimensions and risk thresholds.
+              </p>
+              <div className="mt-4 p-3.5 bg-slate-50 rounded-lg border border-slate-200/80 space-y-2">
+                <div className="flex items-center justify-between text-xs">
+                  <span className="text-slate-500">Decision Pathway:</span>
+                  <span className="font-semibold text-slate-800">Dynamic Risk & Uncertainty Mitigation</span>
+                </div>
+                <div className="flex items-center justify-between text-xs">
+                  <span className="text-slate-500">Execution Mode:</span>
+                  <span className="font-mono text-indigo-700 font-semibold">Human-in-the-Loop Gating</span>
+                </div>
+                <div className="flex items-center justify-between text-xs">
+                  <span className="text-slate-500">Target Case:</span>
+                  <span className="font-mono text-slate-700 font-medium">{caseId || 'STANDBY'}</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Legend Footer (Only shown in Graph view) */}
+      {activeMainView === 'graph' && (
+        <div className="h-8 bg-white border-t border-slate-200 px-4 flex items-center justify-between text-[10px] text-slate-500 shrink-0">
+          {nodes.length > 0 ? (
+            <div className="flex items-center space-x-3">
+              <span className="font-bold text-slate-700 uppercase">Topology Subgraph:</span>
+              <span className="flex items-center space-x-1">
+                <span className="w-2 h-2 rounded-full bg-slate-800" />
+                <span>Transaction</span>
+              </span>
+              <span className="flex items-center space-x-1">
+                <span className="w-2 h-2 rounded-full bg-emerald-500" />
+                <span>Device</span>
+              </span>
+              <span className="flex items-center space-x-1">
+                <span className="w-2 h-2 rounded-full bg-purple-500" />
+                <span>Card</span>
+              </span>
+              <span className="flex items-center space-x-1">
+                <span className="w-2 h-2 rounded-full bg-sky-500" />
+                <span>Account</span>
+              </span>
+              <span className="flex items-center space-x-1">
+                <span className="w-2 h-2 rounded-full bg-amber-500" />
+                <span>IP Address</span>
+              </span>
+              <span className="flex items-center space-x-1">
+                <span className="w-2 h-2 rounded-full bg-rose-500" />
+                <span>Prior Case (Memory)</span>
+              </span>
+            </div>
+          ) : (
+            <div className="flex items-center space-x-2 text-slate-400">
+              <span className="font-bold uppercase">Topology Subgraph:</span>
+              <span className="italic">No case selected</span>
+            </div>
+          )}
+
+          <div className="flex items-center space-x-1.5 text-slate-400">
+            <Move className="w-3 h-3" />
+            <span>Click & Drag to reposition nodes or pan</span>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
