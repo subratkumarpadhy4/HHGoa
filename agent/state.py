@@ -22,6 +22,7 @@ class AgentState(TypedDict):
     evidence_requests: List[Dict[str, Any]]  # list of requests made
 
     recommended_actions: List[Dict[str, Any]]  # list of {action, route, reason}
+    action_history: List[List[Dict[str, Any]]]  # one entry per recommend_action call
     approval_route: str                   # "auto" | "L1" | "L2"
     executed_actions: List[Dict[str, Any]]
     final_case_status: str                # "open" | "closed_fraud" | "closed_legitimate" | "escalated"
@@ -57,6 +58,7 @@ def new_state(case_row: Dict[str, Any]) -> AgentState:
         "evidence_requests": [],
 
         "recommended_actions": [],
+        "action_history": [],
         "approval_route": "auto",
         "executed_actions": [],
         "final_case_status": "open",

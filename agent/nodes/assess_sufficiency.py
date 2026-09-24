@@ -99,5 +99,12 @@ def assess_sufficiency_node(state: AgentState) -> AgentState:
         "details": f"Sufficiency evaluated as '{sufficiency}' (round {current_round}). {reason} [score={score:.2f}]",
     })
 
-    return state
+    # On the first round only: if evidence is insufficient (graph will loop back for more
+    # evidence), snapshot the current recommendation NOW as action_history[0].
+    # This becomes "initial" — what the agent recommended before any extra evidence was gathered.
+    # The final recommend_action node at the end of the graph will add action_history[1] = "final".
+    if current_round == 1 and sufficiency == "insufficient":
+        from agent.nodes.recommend_action import recommend_action_node
+        state = recommend_action_node(state)
 
+    return state

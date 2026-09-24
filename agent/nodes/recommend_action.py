@@ -9,9 +9,17 @@ from datetime import datetime
 from typing import Any
 
 from agent.llm import call_llm_with_retry
+from agent.nodes.llm_investigate import _compact_evidence_pack
 from agent.state import AgentState
 
 SYSTEM_PROMPT = """You are a fraud investigator deciding on the next best action for a case.
+
+IMPORTANT: You may recommend MULTIPLE actions. If the evidence supports more than one action, list them all in order of priority (most urgent first). Do not limit yourself to a single action. Examples of when to recommend multiple actions:
+- If the customer has prior fraud cases AND the current transaction is suspicious: recommend MONITOR_CARD + VERIFY_WITH_CUSTOMER + CREATE_CASE
+- If the customer denies the transaction: recommend BLOCK_CARD + CREATE_CASE (and FILE_REPORT if exposure > $1,000 or shared device)
+- If a shared device ring is detected: recommend BLOCK_CARD + CREATE_CASE + FILE_REPORT + MONITOR_CONNECTED_CARDS
+
+Review the entire Evidence Pack before deciding. The presence of prior_cases, detected_patterns, or connected_entities should each influence the action set.
 
 You must recommend one or more actions from this fixed vocabulary. Do NOT invent new actions:
 
@@ -36,6 +44,29 @@ Rules you must follow (from the bank's fraud policy):
 - R9: Undocumented pattern → CREATE_CASE, FILE_REPORT, ESCALATE_TO_ANALYST.
 - R10: Never BLOCK_ALL_CARDS unless 2+ cards confirmed fraud.
 
+WORKED EXAMPLES:
+
+Example 1 (prior fraud history + weak current signal):
+- Case: risk_score 0.61, customer has 4 prior confirmed fraud cases on this card, current transaction is $77 in_person with no device
+- Expected actions:
+  - MONITOR_CARD (auto) — R6: prior fraud history warrants monitoring
+  - VERIFY_WITH_CUSTOMER (auto) — R1: current transaction is a single signal
+  - CREATE_CASE (auto) — R6: internal case for ongoing pattern
+
+Example 2 (customer denial):
+- Case: customer_report, customer says they did not make the transaction, exposure $500
+- Expected actions:
+  - BLOCK_CARD (L1) — R2: customer denied
+  - CREATE_CASE (auto) — R2: internal case required
+
+Example 3 (shared device ring):
+- Case: NewDeviceWithProxy strong, device shared across 5 cards, exposure $2,800
+- Expected actions:
+  - BLOCK_CARD (L2) — R6: shared ring, exposure > $2,500
+  - CREATE_CASE (auto) — R6: internal case
+  - FILE_REPORT (L2) — R6: coordinated ring requires SAR
+  - MONITOR_CONNECTED_CARDS (auto) — R6: other cards on same device
+
 You must output ONLY valid JSON matching this schema:
 {
   "recommended_actions": [
@@ -51,45 +82,6 @@ You must output ONLY valid JSON matching this schema:
 If the evidence is insufficient to support any action, recommend ESCALATE_TO_ANALYST."""
 
 
-def _compact_evidence_pack(pack: dict) -> dict:
-    """Compact raw multi-hop transaction dumps to concise summaries for LLM prompt."""
-    compact = {}
-    for k, v in pack.items():
-        if k == "connected_entities" and isinstance(v, dict):
-            resp_list = v.get("response", [])
-            if resp_list and isinstance(resp_list, list) and isinstance(resp_list[0], dict):
-                block = resp_list[0]
-                txns = block.get("txns", [])
-                devs = [d.get("v_id") for d in block.get("devices", [])]
-                emails = [e.get("v_id") for e in block.get("emails", [])]
-                regions = [r.get("v_id") for r in block.get("regions", [])]
-                cards = [c.get("v_id") for c in block.get("cards", [])]
-                compact["connected_entities"] = {
-                    "cards": cards[:10],
-                    "total_cards_count": len(cards),
-                    "total_transactions_count": len(txns),
-                    "sample_recent_transactions": [
-                        {
-                            "txn_id": t.get("v_id"),
-                            "amount": t.get("attributes", {}).get("amount"),
-                            "ts": t.get("attributes", {}).get("ts"),
-                            "channel": t.get("attributes", {}).get("channel"),
-                            "risk_score": t.get("attributes", {}).get("risk_score"),
-                        }
-                        for t in txns[:5]
-                    ],
-                    "total_devices_count": len(devs),
-                    "sample_devices": devs[:5],
-                    "total_emails_count": len(emails),
-                    "sample_email_domains": emails[:10],
-                    "total_regions_count": len(regions),
-                    "sample_billing_regions": regions[:10],
-                }
-            else:
-                compact["connected_entities"] = v
-        else:
-            compact[k] = v
-    return compact
 
 
 ACTION_SCHEMA = {
@@ -158,6 +150,7 @@ EVIDENCE PACK:
         if not isinstance(rec_actions, list) or len(rec_actions) == 0:
             rec_actions = [{"action": "ESCALATE_TO_ANALYST", "route": "auto", "reason": "No actions returned by LLM."}]
 
+    state.setdefault("action_history", []).append(rec_actions)
     state["recommended_actions"] = rec_actions
 
     now_str = datetime.now().strftime("%Y-%m-%d %H:%M:%S")

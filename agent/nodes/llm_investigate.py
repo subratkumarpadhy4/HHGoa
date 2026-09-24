@@ -37,8 +37,7 @@ You must output ONLY valid JSON matching this schema:
 }"""
 
 
-def _compact_evidence_pack(pack: dict) -> dict:
-    """Compact raw multi-hop transaction dumps to concise summaries for LLM prompt."""
+def _compact_evidence_pack(pack: dict, max_chars: int = 40000) -> dict:
     compact = {}
     for k, v in pack.items():
         if k == "connected_entities" and isinstance(v, dict):
@@ -51,7 +50,7 @@ def _compact_evidence_pack(pack: dict) -> dict:
                 regions = [r.get("v_id") for r in block.get("regions", [])]
                 cards = [c.get("v_id") for c in block.get("cards", [])]
                 compact["connected_entities"] = {
-                    "cards": cards[:10],
+                    "cards": cards[:5],
                     "total_cards_count": len(cards),
                     "total_transactions_count": len(txns),
                     "sample_recent_transactions": [
@@ -62,19 +61,72 @@ def _compact_evidence_pack(pack: dict) -> dict:
                             "channel": t.get("attributes", {}).get("channel"),
                             "risk_score": t.get("attributes", {}).get("risk_score"),
                         }
-                        for t in txns[:5]
+                        for t in txns[:3]
                     ],
                     "total_devices_count": len(devs),
-                    "sample_devices": devs[:5],
+                    "sample_devices": devs[:3],
                     "total_emails_count": len(emails),
-                    "sample_email_domains": emails[:10],
+                    "sample_email_domains": emails[:5],
                     "total_regions_count": len(regions),
-                    "sample_billing_regions": regions[:10],
+                    "sample_billing_regions": regions[:5],
                 }
             else:
-                compact["connected_entities"] = v
+                compact["connected_entities"] = {"note": "no entities"}
+        elif k == "prior_cases" and isinstance(v, dict):
+            similar = v.get("similar", [])
+            compact["prior_cases"] = {
+                "count": len(similar),
+                "similar": [
+                    {
+                        "case_id": c.get("case_id"),
+                        "outcome": c.get("outcome"),
+                        "pattern": c.get("pattern"),
+                        "exposure_usd": c.get("exposure_usd"),
+                        "analyst_notes_short": (c.get("analyst_notes_short") or "")[:150],
+                    }
+                    for c in similar[:3]
+                ]
+            }
+        elif k == "detected_patterns" and isinstance(v, list):
+            compact["detected_patterns"] = [
+                {
+                    "pattern": p.get("pattern"),
+                    "strength": p.get("strength"),
+                    "observations": (p.get("observations") or [])[:3],
+                }
+                for p in v
+            ]
         else:
             compact[k] = v
+
+    # HARD CAP
+    serialized = json.dumps(compact, default=str)
+    if len(serialized) > max_chars:
+        print(f"[compaction] First pass: {len(serialized)} chars — dropping samples")
+        if "connected_entities" in compact:
+            ce = compact["connected_entities"]
+            ce.pop("sample_recent_transactions", None)
+            ce.pop("sample_devices", None)
+            ce.pop("sample_email_domains", None)
+            ce.pop("sample_billing_regions", None)
+            ce.pop("cards", None)
+        serialized = json.dumps(compact, default=str)
+    
+    if len(serialized) > max_chars:
+        print(f"[compaction] Second pass: {len(serialized)} chars — minimal mode")
+        compact = {
+            "trigger": pack.get("trigger", {}),
+            "transaction_context": compact.get("transaction_context", {}),
+            "detected_patterns": [
+                {"pattern": p.get("pattern"), "strength": p.get("strength")}
+                for p in compact.get("detected_patterns", [])
+            ],
+            "prior_cases": {"count": compact.get("prior_cases", {}).get("count", 0)},
+            "truncated": True,
+        }
+        serialized = json.dumps(compact, default=str)
+    
+    print(f"[compaction] Final size: {len(serialized)} chars (~{len(serialized)//4} tokens)")
     return compact
 
 

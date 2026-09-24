@@ -7,6 +7,7 @@ Generates structured HHGOA submission format JSON files from agent investigation
 from datetime import datetime
 from typing import Any, Dict, List
 
+from agent.sar_generator import generate_sar_narrative
 from agent.state import AgentState
 
 KNOWN_FRAUD_PATTERNS = {
@@ -128,12 +129,32 @@ def generate_answer_file(state: AgentState) -> Dict[str, Any]:
     if not pattern_desc and hypothesis == "undocumented":
         pattern_desc = f"Undocumented anomaly pattern observed for customer {customer_id} on card {card_id}."
 
-    # 7. Next Best Actions
+    # 7. Next Best Actions — initial (before evidence rounds) vs final (after)
     rec_actions = state.get("recommended_actions") or []
     if not rec_actions:
         rec_actions = [{"action": "ESCALATE_TO_ANALYST", "route": "auto", "reason": "No actions returned."}]
 
-    # 8. SAR Assessment
+    action_history = state.get("action_history") or []
+    initial_actions = action_history[0] if action_history else rec_actions
+    final_actions = rec_actions
+
+    # Compute what_changed
+    initial_action_names = {a.get("action") for a in initial_actions}
+    final_action_names   = {a.get("action") for a in final_actions}
+    added   = final_action_names - initial_action_names
+    removed = initial_action_names - final_action_names
+    if not added and not removed:
+        what_changed = "No change — initial and final recommendations are identical."
+    else:
+        parts = []
+        if added:
+            parts.append(f"Added: {', '.join(sorted(added))}")
+        if removed:
+            parts.append(f"Removed: {', '.join(sorted(removed))}")
+        what_changed = "; ".join(parts) + " after additional evidence was gathered."
+
+
+    # 8. SAR Assessment & Narrative Generation
     file_sar = any(a.get("action") == "FILE_REPORT" for a in rec_actions)
     sar_reason = ""
     for a in rec_actions:
@@ -142,6 +163,8 @@ def generate_answer_file(state: AgentState) -> Dict[str, Any]:
             break
     if not sar_reason and file_sar:
         sar_reason = "FILE_REPORT recommended per financial crime policy."
+
+    sar_narrative = generate_sar_narrative(state) if file_sar else ""
 
     subjects = []
     if customer_id:
@@ -194,14 +217,14 @@ def generate_answer_file(state: AgentState) -> Dict[str, Any]:
         },
         "evidence_requests": state.get("evidence_requests", []),
         "next_best_actions": {
-            "initial": rec_actions,
-            "final": rec_actions,
-            "what_changed": "Actions confirmed after multi-round graph and pattern evidence assessment.",
+            "initial": initial_actions,
+            "final": final_actions,
+            "what_changed": what_changed,
         },
         "sar": {
             "file": file_sar,
             "reason": sar_reason,
-            "narrative": "",
+            "narrative": sar_narrative,
             "subjects": subjects,
             "total_amount_usd": exposure_usd,
             "activity_dates": activity_dates,
